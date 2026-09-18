@@ -1,0 +1,200 @@
+import { parseUnits } from "viem";
+import { CHAIN_IDS, CHAIN_LABELS, RH, USDC } from "./chains";
+import { marketContext } from "./market";
+import { relayCostSummary, relayQuote } from "./relay";
+import { candidateData } from "./robinhood";
+import { reasonDecision } from "./serv";
+import type { Alternative, Decision, MarketContext, Momentum, Position, Preferences, Score } from "./types";
+
+const fmtUsd = (n: number | null | undefined) => (n == null ? "n/a" : `$${n.toLocaleString("en-US", { maximumFractionDigits: n < 10 ? 4 : 0 })}`);
+const fmtPct = (n: number | null | undefined, d = 2) => (n == null ? "n/a" : `${n >= 0 ? "+" : ""}${n.toFixed(d)}%`);
+
+function riskGuidance(p: Preferences) {
+  switch (p.risk) {
+    case "conservative": return "Conservative: prefer capital preservation. Move to a stablecoin readily when the current asset shows weakness, thin liquidity or a sharp drawdown; require very strong, well-supported evidence and high confidence before moving into a Robinhood Chain asset; when in doubt, HOLD or de-risk.";
+    case "aggressive": return "Aggressive: tolerate volatility in pursuit of upside. Favor moving into a clearly stronger opportunity when it clears the threshold after costs; use stablecoins only when the current asset is deteriorating badly.";
+    default: return "Moderate: balance upside against drawdown risk. Move only when the improvement is clear after costs, and size positions cautiously.";
+  }
+}
+
+const LAMBDA: Record<Preferences["risk"], number> = { conservative: 0.4, moderate: 0.25, aggressive: 0.12 };
+const clamp = (n: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, n));
+
+/**
+ * Alloc's scoring model. Deliberately simple and explainable:
+ * expected 30d return blends 30d, 90d and 7d momentum; risk is monthly volatility scaled by the user's risk profile.
+ * A stablecoin scores 0 on both. SERV receives these numbers and may adjust with judgement, but they anchor the decision.
+ */
+export function scoreAsset(mo: Momentum | null | undefined, risk: Preferences["risk"], opts: { stable?: boolean; h24?: number | null } = {}): Score {
+  if (opts.stable) return { expectedReturn30dPct: 0, monthlyVolatilityPct: 0, riskAdjustedPct: 0, advantagePct: null };
+  const c30 = mo?.change30dPct ?? (opts.h24 != null ? opts.h24 * 5 : 0);
+  const c90 = mo?.change90dPct ?? c30 * 2;
+  const c7 = mo?.change7dPct ?? (opts.h24 ?? 0) * 2;
+  const mu = clamp(0.5 * c30 + 0.25 * (c90 / 3) + 0.25 * (c7 * 2), -30, 30);
+  const vol = (mo?.volatility30dPct ?? 80) / Math.sqrt(12);
+  return { expectedReturn30dPct: mu, monthlyVolatilityPct: vol, riskAdjustedPct: mu - LAMBDA[risk] * vol, advantagePct: null };
+}
+
+function proposedAmountUsd(position: Position, prefs: Preferences) {
+  return position.valueUsd * (prefs.maxAllocationPct / 100);
+}
+
+/** Gather every alternative with live route costs for the proposed size. */
+export async function gatherAlternatives(position: Position, prefs: Preferences): Promise<{ alternatives: Alternative[]; context: MarketContext }> {
+  const amountUsd = proposedAmountUsd(position, prefs);
+  const amountTokens = Number(position.amount) * (prefs.maxAllocationPct / 100);
+  const rawAmount = parseUnits(amountTokens.toFixed(Math.min(position.decimals, 8)), position.decimals);
+  const originChainId = CHAIN_IDS[position.chain];
+
+  const [context, stableQuote, usdgQuote, candidates] = await Promise.all([
+    marketContext(),
+    position.isStablecoin ? Promise.resolve(null) : relayQuote({ originChainId, destinationChainId: originChainId, originCurrency: position.token, destinationCurrency: USDC[position.chain], amount: rawAmount.toString() }).catch((e: Error) => ({ error: e.message })),
+    relayQuote({ originChainId, destinationChainId: 4663, originCurrency: position.token, destinationCurrency: RH.USDG, amount: rawAmount.toString() }).catch((e: Error) => ({ error: e.message })),
+    candidateData(amountUsd),
+  ]);
+
+  const alternatives: Alternative[] = [];
+  const current = scoreAsset(position.market.momentum, prefs.risk, { stable: position.isStablecoin, h24: position.market.priceChange.h24 });
+  position.score = current;
+  const withAdvantage = (score: Score, routeCostPct: number | null): Score => ({ ...score, advantagePct: routeCostPct == null ? null : score.riskAdjustedPct - current.riskAdjustedPct - routeCostPct });
+
+  // Stablecoin: USDC on the same chain.
+  if (!position.isStablecoin) {
+    const ok = stableQuote && !("error" in stableQuote) ? relayCostSummary(stableQuote) : null;
+    alternatives.push({
+      kind: "stablecoin", symbol: "USDC", name: "USD Coin", address: USDC[position.chain], chain: position.chain,
+      priceUsd: 1, referencePriceUsd: 1, premiumPct: null, market: null,
+      score: withAdvantage(scoreAsset(null, prefs.risk, { stable: true }), ok ? ok.costPct : null),
+      routeCostPct: ok ? ok.costPct : null,
+      routeDescription: ok ? `Swap ${position.symbol} → USDC on ${CHAIN_LABELS[position.chain]} (${ok.seconds ?? "~"}s)` : `No live route quote available: ${stableQuote && "error" in stableQuote ? stableQuote.error : "unknown"}`,
+      routeSeconds: ok?.seconds ?? null,
+    });
+  }
+
+  // Robinhood Chain: bridge/swap into USDG, then USDG → stock token on-chain.
+  const bridge = usdgQuote && !("error" in usdgQuote) ? relayCostSummary(usdgQuote) : null;
+  for (const c of candidates) {
+    if (!c.priceUsd && !c.referencePriceUsd) continue;
+    // A hop cost above 10% means the on-chain pool cannot absorb this size; treat as no route.
+    const deep = c.hopCostPct != null && c.hopCostPct <= 10;
+    const total = bridge && deep ? bridge.costPct + (c.hopCostPct as number) : null;
+    const direct = position.isStablecoin;
+    alternatives.push({
+      kind: "robinhood", symbol: c.asset.symbol, name: c.asset.name, address: c.asset.address, chain: "robinhood",
+      priceUsd: c.priceUsd, referencePriceUsd: c.referencePriceUsd, premiumPct: c.premiumPct, market: c.market,
+      score: withAdvantage(scoreAsset(c.market?.momentum, prefs.risk, { h24: c.market?.priceChange.h24 }), total),
+      routeCostPct: total,
+      routeDescription: total != null
+        ? `${direct ? "Move" : "Swap"} ${position.symbol} → USDG on Robinhood Chain (${bridge!.seconds ?? "~"}s), then USDG → ${c.asset.symbol} on-chain`
+        : `Route unavailable${bridge ? "" : `: ${usdgQuote && "error" in usdgQuote ? usdgQuote.error : "no bridge quote"}`}${!deep ? " (not enough on-chain depth for this amount)" : ""}`,
+      routeSeconds: bridge?.seconds ?? null,
+    });
+  }
+  return { alternatives, context };
+}
+
+function describePosition(p: Position) {
+  const m = p.market;
+  return [
+    `Asset: ${p.symbol} (${p.name}) on ${CHAIN_LABELS[p.chain]}${p.isStablecoin ? " — a stablecoin" : ""}`,
+    `Holding: ${Number(p.amount).toLocaleString("en-US")} ${p.symbol} worth ${fmtUsd(p.valueUsd)} at ${fmtUsd(p.priceUsd)} per token`,
+    `Price change: 1h ${fmtPct(m.priceChange.h1)}, 6h ${fmtPct(m.priceChange.h6)}, 24h ${fmtPct(m.priceChange.h24)}`,
+    `24h volume: ${fmtUsd(m.volume24hUsd)}; on-chain liquidity: ${fmtUsd(m.liquidityUsd)}${m.liquidityUsd ? ` (position is ${((p.valueUsd / m.liquidityUsd) * 100).toFixed(1)}% of pooled liquidity)` : ""}`,
+    `24h trades: ${m.txns24h ? `${m.txns24h.buys} buys / ${m.txns24h.sells} sells` : "n/a"}; market cap ${fmtUsd(m.marketCapUsd)}; FDV ${fmtUsd(m.fdvUsd)}`,
+    describeMomentum(m.momentum),
+    p.score ? `Alloc model: expected 30d return ${fmtPct(p.score.expectedReturn30dPct, 1)}, monthly volatility ${p.score.monthlyVolatilityPct.toFixed(1)}%, risk-adjusted score ${fmtPct(p.score.riskAdjustedPct, 1)}` : "",
+  ].filter(Boolean).join("\n");
+}
+
+function describeMomentum(mo: Momentum | null | undefined) {
+  if (!mo) return "Longer-term performance: not available";
+  return `Longer-term performance: 7d ${fmtPct(mo.change7dPct)}, 30d ${fmtPct(mo.change30dPct)}, 90d ${fmtPct(mo.change90dPct)}; 30d annualised volatility ${fmtPct(mo.volatility30dPct, 0).replace("+", "")}; ${fmtPct(mo.fromHigh52wPct)} from recent high`;
+}
+
+function describeAlternative(a: Alternative) {
+  if (a.kind === "stablecoin") {
+    return `- USDC (stablecoin, same chain). Risk-adjusted score 0.0%. Modelled net advantage over current asset after costs: ${a.score?.advantagePct == null ? "n/a" : fmtPct(a.score.advantagePct, 1)}. Move cost for the proposed amount: ${a.routeCostPct == null ? "no live route" : fmtPct(a.routeCostPct, 2).replace("+", "")}.`;
+  }
+  const m = a.market;
+  return `- ${a.symbol} (${a.name}, tokenized stock on Robinhood Chain). On-chain price ${fmtUsd(a.priceUsd)}; Chainlink reference ${fmtUsd(a.referencePriceUsd)}; on-chain premium vs reference ${fmtPct(a.premiumPct)}. Price change 1h ${fmtPct(m?.priceChange.h1)}, 6h ${fmtPct(m?.priceChange.h6)}, 24h ${fmtPct(m?.priceChange.h24)}. Underlying stock: ${describeMomentum(m?.momentum).replace("Longer-term performance: ", "")}. 24h volume ${fmtUsd(m?.volume24hUsd)}; liquidity ${fmtUsd(m?.liquidityUsd)}; 24h trades ${m?.txns24h ? `${m.txns24h.buys}/${m.txns24h.sells}` : "n/a"}. All-in move cost for the proposed amount: ${a.routeCostPct == null ? "no live route (do not choose)" : fmtPct(a.routeCostPct, 2).replace("+", "")}. Alloc model: expected 30d return ${fmtPct(a.score?.expectedReturn30dPct, 1)}, risk-adjusted ${fmtPct(a.score?.riskAdjustedPct, 1)}, modelled net advantage over current asset after costs ${a.score?.advantagePct == null ? "n/a" : fmtPct(a.score.advantagePct, 1)}.`;
+}
+
+export async function evaluatePosition(position: Position, prefs: Preferences, mode: "playground" | "real"): Promise<Decision> {
+  const { alternatives, context } = await gatherAlternatives(position, prefs);
+  const proposedUsd = proposedAmountUsd(position, prefs);
+
+  const system = `You are Alloc, a capital allocation agent. You watch one crypto position on Ethereum or Base and decide where that capital should be right now: stay (HOLD), move partly into a stablecoin (MOVE_TO_STABLECOIN), or move partly into a tokenized stock on Robinhood Chain (MOVE_TO_ROBINHOOD).
+
+You are not a trading bot. Doing nothing is a fully valid, often correct outcome. Never move capital just because you can. An alternative must be sufficiently better AFTER the cost and risk of moving.
+
+Hard rules:
+1. Respect the user's preferences exactly. allocation_pct must be 0 for HOLD and otherwise between 1 and the user's maximum allocation.
+2. Only choose a move if the expected advantage minus the all-in move cost exceeds the user's minimum opportunity threshold, and the route is live. Alloc's model supplies a "modelled net advantage" for every alternative (risk-adjusted score of the alternative minus the current asset's, minus move cost). Treat it as the primary estimate: expected_opportunity_pct should equal the modelled net advantage plus move cost (i.e. the gross advantage), adjusted only modestly and for stated reasons (on-chain premium, thin liquidity, one-sided trade flow, very fresh reversal). If the best modelled net advantage clears the threshold, you should normally move; if none does, HOLD.
+3. Never choose an alternative whose route is unavailable.
+4. If the current asset is a stablecoin, MOVE_TO_STABLECOIN is not meaningful; choose HOLD or MOVE_TO_ROBINHOOD.
+5. A large on-chain premium versus the Chainlink reference (above ~1%) is a cost and a risk, not an opportunity. A discount can be an opportunity.
+6. Thin liquidity relative to the amount being moved raises cost and risk.
+7. Cite the supplied numbers in the reasoning. Do not invent data, news, or prices. Weakness in the current asset (falling over 30d/90d, far below its high, very high volatility) is a reason to move; strength is a reason to stay. Set confidence from how far the chosen option clears the threshold and how consistent the signals are.
+8. Write for a consumer: plain language, no bridges/routes/pools jargon, no hedging boilerplate. Never use first person ("I"); write as Alloc in the third person or imperative. Do not mention that you are an AI.
+9. why_not must contain one entry for every alternative you did not choose (USDC, each Robinhood asset) and, when you move, the current asset. Use the asset symbol as the option name.
+10. headline is at most 6 words.`;
+
+  const user = `Timestamp: ${new Date().toISOString()}
+Mode: ${mode}
+
+USER PREFERENCES
+Risk tolerance: ${prefs.risk}. ${riskGuidance(prefs)}
+Minimum opportunity to move: ${prefs.minOpportunityPct}% expected advantage after costs.
+Maximum allocation per decision: ${prefs.maxAllocationPct}% of the position (${fmtUsd(proposedUsd)} at today's value). Route costs below are quoted for exactly this amount.
+Approval mode: ${prefs.approvalMode}.
+
+CURRENT POSITION
+${describePosition(position)}
+
+GENERAL MARKET CONDITIONS
+ETH ${fmtUsd(context.ethUsd)} (${fmtPct(context.ethChange24hPct)} 24h); BTC ${fmtUsd(context.btcUsd)} (${fmtPct(context.btcChange24hPct)} 24h); total crypto market cap ${fmtPct(context.totalMarketCapChange24hPct)} 24h.
+
+ALTERNATIVES (live data)
+${alternatives.map(describeAlternative).join("\n")}
+
+Decide where this capital should be, and explain it.`;
+
+  const { decision: d, model } = await reasonDecision(system, user);
+
+  // Normalise against the rules so the UI never shows an impossible action.
+  let action = d.action;
+  let target = d.target_symbol ? alternatives.find((a) => a.symbol.toLowerCase() === d.target_symbol!.toLowerCase()) ?? null : null;
+  if (action === "MOVE_TO_STABLECOIN") target = alternatives.find((a) => a.kind === "stablecoin") ?? null;
+  if (action !== "HOLD" && (!target || target.routeCostPct == null)) { action = "HOLD"; target = null; }
+  const allocationPct = action === "HOLD" ? 0 : Math.min(Math.max(1, Math.round(d.allocation_pct || prefs.maxAllocationPct)), prefs.maxAllocationPct);
+  const amountUsd = position.valueUsd * (allocationPct / 100);
+  const costPct = target?.routeCostPct ?? null;
+
+  return {
+    id: `dec_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 7)}`,
+    createdAt: new Date().toISOString(),
+    mode,
+    position,
+    preferences: prefs,
+    action,
+    targetSymbol: target?.symbol ?? null,
+    targetAddress: target?.address ?? null,
+    targetChain: target?.chain ?? null,
+    allocationPct,
+    amountUsd,
+    expectedOpportunityPct: action === "HOLD" ? null : d.expected_opportunity_pct,
+    estimatedCostPct: costPct,
+    estimatedCostUsd: costPct != null ? (amountUsd * costPct) / 100 : null,
+    confidence: d.confidence,
+    headline: d.headline,
+    summary: d.summary,
+    reasoning: d.reasoning,
+    whyNot: d.why_not,
+    evaluated: alternatives.map((a) => a.symbol),
+    warnings: d.warnings,
+    context,
+    alternatives,
+    model,
+    status: action === "HOLD" ? "held" : "recommended",
+  };
+}

@@ -1,69 +1,43 @@
-import Image from "next/image";
+import Link from "next/link";
 
 export default function Home() {
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert h-5 w-[100px]"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the{" "}
-            <code className="rounded bg-black/[.06] px-1.5 py-0.5 font-mono text-[0.9em] dark:bg-white/[.08]">
-              page.tsx
-            </code>{" "}
-            file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
+    <div className="space-y-14">
+      <section className="space-y-6 pt-6">
+        <h1 className="display text-[2.6rem] font-bold sm:text-[3.4rem]">
+          Your capital.<br />Three choices.<br />One intelligent allocator.
+        </h1>
+        <p className="max-w-[52ch] text-[1.05rem] leading-relaxed text-ink-2">
+          Alloc watches a crypto position on Ethereum or Base and decides whether it should stay put, move to a stablecoin, or move into a tokenized stock on Robinhood Chain. Every decision comes with the reasoning, the cost, and what happens if you approve.
+        </p>
+        <div className="flex flex-wrap gap-3 pt-2">
+          <Link href="/playground" className="btn btn-primary">Try a hypothetical position</Link>
+          <Link href="/real" className="btn btn-secondary">Connect a wallet</Link>
         </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert h-[14px] w-4"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={14}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
-      </main>
+      </section>
+
+      <section className="grid gap-4 sm:grid-cols-3">
+        {[
+          { t: "Hold", d: "No alternative is worth the cost and risk of moving. Nothing happens, and you see why.", c: "pill-hold" },
+          { t: "Move to USDC", d: "The current asset has weakened. Part of the position moves to a stablecoin on the same chain.", c: "pill-stable" },
+          { t: "Move to Robinhood Chain", d: "A tokenized stock looks sufficiently better after costs. Part of the position moves there.", c: "pill-robinhood" },
+        ].map((x) => (
+          <div key={x.t} className="card p-5">
+            <span className={`pill ${x.c}`}>{x.t}</span>
+            <p className="mt-3 text-[0.95rem] leading-relaxed text-ink-2">{x.d}</p>
+          </div>
+        ))}
+      </section>
+
+      <section className="card p-6 sm:p-7">
+        <h2 className="text-xl font-bold">How a decision is made</h2>
+        <ol className="mt-4 space-y-3 text-[0.95rem] leading-relaxed text-ink-2">
+          <li><span className="font-semibold text-ink">Read the position.</span> Live price, momentum, liquidity, volume and market cap for the exact token you hold.</li>
+          <li><span className="font-semibold text-ink">Price the alternatives.</span> USDC on your chain, and nine tokenized stocks on Robinhood Chain, each with its on-chain price, Chainlink reference price and a real quote for moving your amount.</li>
+          <li><span className="font-semibold text-ink">Reason with SERV.</span> SERV Reasoning weighs opportunity against cost and risk under your preferences and returns a decision, a plain explanation, and why the other options lost.</li>
+          <li><span className="font-semibold text-ink">Simulate or approve.</span> Playground shows the resulting allocation. Real mode prepares the transactions and waits for you.</li>
+        </ol>
+      </section>
     </div>
   );
 }

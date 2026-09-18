@@ -1,26 +1,107 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --bg: #f5f6f4;
+  --surface: #ffffff;
+  --surface-2: #eef0ed;
+  --ink: #0f1419;
+  --ink-2: #4b5560;
+  --ink-3: #8b939d;
+  --line: #e1e5e1;
+  --line-strong: #c9cfca;
+  --hold: #0f1419;
+  --stable: #2b5b8f;
+  --stable-soft: #e6eef7;
+  --robinhood: #0b7a57;
+  --robinhood-soft: #e3f2ec;
+  --warn: #9a5b00;
+  --warn-soft: #fbf1df;
+  --danger: #b3261e;
+  --danger-soft: #fbe9e7;
+  --radius: 16px;
+  --font-sans: var(--font-schibsted), ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-ink: var(--ink);
+  --color-ink-2: var(--ink-2);
+  --color-ink-3: var(--ink-3);
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
+  --color-hold: var(--hold);
+  --color-stable: var(--stable);
+  --color-stable-soft: var(--stable-soft);
+  --color-robinhood: var(--robinhood);
+  --color-robinhood-soft: var(--robinhood-soft);
+  --color-warn: var(--warn);
+  --color-warn-soft: var(--warn-soft);
+  --color-danger: var(--danger);
+  --color-danger-soft: var(--danger-soft);
+  --font-sans: var(--font-sans);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
-}
-
+html { color-scheme: light; }
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
 }
+h1, h2, h3 { letter-spacing: -0.02em; }
+.display { letter-spacing: -0.035em; line-height: 0.98; }
+.tnum { font-variant-numeric: lining-nums; letter-spacing: -0.01em; }
+
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); }
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: .5rem; height: 2.75rem; padding: 0 1.25rem; border-radius: 999px; font-weight: 600; font-size: .9375rem; transition: background-color .15s ease, color .15s ease, transform .1s ease, opacity .15s ease; cursor: pointer; white-space: nowrap; }
+.btn:disabled { opacity: .5; cursor: not-allowed; }
+.btn:active:not(:disabled) { transform: translateY(1px); }
+.btn-primary { background: var(--ink); color: #fff; }
+.btn-primary:hover:not(:disabled) { background: #232a31; }
+.btn-secondary { background: transparent; color: var(--ink); border: 1px solid var(--line-strong); }
+.btn-secondary:hover:not(:disabled) { background: var(--surface-2); }
+.btn-robinhood { background: var(--robinhood); color: #fff; }
+.btn-robinhood:hover:not(:disabled) { background: #096646; }
+.btn-stable { background: var(--stable); color: #fff; }
+.btn-stable:hover:not(:disabled) { background: #234b76; }
+.btn-danger { background: transparent; color: var(--danger); border: 1px solid var(--line-strong); }
+.btn-danger:hover:not(:disabled) { background: var(--danger-soft); }
+.btn-sm { height: 2.25rem; padding: 0 .9rem; font-size: .875rem; }
+
+.field { width: 100%; height: 3rem; padding: 0 1rem; border-radius: 12px; border: 1px solid var(--line-strong); background: var(--surface); font-size: 1rem; color: var(--ink); outline: none; transition: border-color .15s, box-shadow .15s; }
+.field:focus { border-color: var(--ink); box-shadow: 0 0 0 3px rgba(15,20,25,.08); }
+.field::placeholder { color: var(--ink-3); }
+select.field { appearance: none; background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%234b5560' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><polyline points='6 9 12 15 18 9'/></svg>"); background-repeat: no-repeat; background-position: right .9rem center; padding-right: 2.5rem; }
+label.lbl { display: block; font-size: .875rem; color: var(--ink-2); margin-bottom: .4rem; }
+
+.seg { display: inline-flex; background: var(--surface-2); border-radius: 999px; padding: 3px; }
+.seg button { height: 2.25rem; padding: 0 1rem; border-radius: 999px; font-size: .875rem; font-weight: 600; color: var(--ink-2); transition: background-color .15s, color .15s; }
+.seg button[aria-pressed="true"] { background: var(--surface); color: var(--ink); box-shadow: 0 1px 2px rgba(0,0,0,.06); }
+
+.pill { display: inline-flex; align-items: center; gap: .35rem; height: 1.6rem; padding: 0 .65rem; border-radius: 999px; font-size: .78rem; font-weight: 600; }
+.pill-hold { background: var(--surface-2); color: var(--ink); }
+.pill-stable { background: var(--stable-soft); color: var(--stable); }
+.pill-robinhood { background: var(--robinhood-soft); color: var(--robinhood); }
+.pill-warn { background: var(--warn-soft); color: var(--warn); }
+
+/* The decision spine: what I have → what Alloc thinks → what it will do */
+.spine { position: relative; }
+.spine-line { position: absolute; left: 1.05rem; top: 2.5rem; bottom: 2.5rem; width: 2px; background: var(--line-strong); transform-origin: top; animation: draw .8s cubic-bezier(.2,.7,.2,1) both; }
+.spine-step { position: relative; padding-left: 3.25rem; }
+.spine-dot { position: absolute; left: .5rem; top: .35rem; width: 1.15rem; height: 1.15rem; border-radius: 999px; background: var(--surface); border: 2px solid var(--line-strong); display: grid; place-items: center; }
+.spine-dot.active { border-color: var(--ink); background: var(--ink); }
+.spine-dot.robinhood { border-color: var(--robinhood); background: var(--robinhood); }
+.spine-dot.stable { border-color: var(--stable); background: var(--stable); }
+.reveal { animation: rise .55s cubic-bezier(.2,.7,.2,1) both; }
+.reveal-2 { animation-delay: .18s; }
+.reveal-3 { animation-delay: .36s; }
+@keyframes draw { from { transform: scaleY(0); } to { transform: scaleY(1); } }
+@keyframes rise { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+@keyframes pulse { 0%, 100% { opacity: .35; } 50% { opacity: 1; } }
+.thinking { animation: pulse 1.6s ease-in-out infinite; }
+@media (prefers-reduced-motion: reduce) { .spine-line, .reveal, .thinking { animation: none !important; } }
+
+a:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
