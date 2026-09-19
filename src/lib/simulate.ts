@@ -4,6 +4,12 @@ import { relayCostSummary, relayQuote, type RelayQuote } from "./relay";
 import { chainlinkPrice, findRobinhoodAsset, quoteV4 } from "./robinhood";
 import { dexMarket } from "./market";
 import type { Decision, Simulation } from "./types";
+import { discoverMemes } from "./memes";
+
+async function memeAsset(address: string) {
+  const m = (await discoverMemes()).find((x) => x.address.toLowerCase() === address.toLowerCase());
+  return m ? { symbol: m.symbol, name: m.name, address: m.address, decimals: m.decimals, chainlinkFeed: null as `0x${string}` | null } : null;
+}
 
 export interface RoutePlan {
   simulation: Simulation;
@@ -40,8 +46,27 @@ export async function planRoute(decision: Decision, user?: `0x${string}`): Promi
     };
   }
 
-  // MOVE_TO_ROBINHOOD: leg 1 to USDG on Robinhood Chain, leg 2 USDG → stock token on-chain.
-  const asset = await findRobinhoodAsset(decision.targetSymbol);
+  // Meme with a direct Relay route: one leg straight into the token.
+  if (decision.targetKind === "meme" && decision.targetDirect && decision.targetAddress) {
+    const q = await relayQuote({ user, originChainId, destinationChainId: 4663, originCurrency: p.token, destinationCurrency: decision.targetAddress, amount: raw.toString() });
+    const c = relayCostSummary(q);
+    const received = Number(q.details.currencyOut.amountFormatted);
+    return {
+      simulation: {
+        startingValueUsd: p.valueUsd, amountUsd: c.inUsd, amountTokens,
+        receivedTokens: received, receivedSymbol: decision.targetSymbol, receivedValueUsd: c.outUsd,
+        costUsd: c.costUsd, costPct: c.costPct,
+        resulting: [{ symbol: p.symbol, valueUsd: p.valueUsd - c.inUsd, chain: CHAIN_LABELS[p.chain] }, { symbol: decision.targetSymbol, valueUsd: c.outUsd, chain: "Robinhood Chain" }],
+        route: [`${p.symbol} → ${decision.targetSymbol} on Robinhood Chain (direct)`], timeSeconds: c.seconds,
+      },
+      relay: q, leg2: null,
+    };
+  }
+
+  // MOVE_TO_ROBINHOOD: leg 1 to USDG on Robinhood Chain, leg 2 USDG → token on-chain.
+  const asset = decision.targetKind === "meme"
+    ? await memeAsset(decision.targetAddress!)
+    : await findRobinhoodAsset(decision.targetSymbol);
   if (!asset) throw new Error(`Unknown Robinhood Chain asset ${decision.targetSymbol}`);
   const q = await relayQuote({ user, originChainId, destinationChainId: 4663, originCurrency: p.token, destinationCurrency: RH.USDG, amount: raw.toString() });
   const c = relayCostSummary(q);

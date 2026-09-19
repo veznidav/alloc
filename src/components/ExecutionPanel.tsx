@@ -112,7 +112,7 @@ export function ExecutionPanel({ decision, onDone, onReject }: { decision: Decis
       {decision.warnings.length > 0 && (
         <ul className="mt-4 space-y-1.5">{decision.warnings.map((w, i) => <li key={i} className="text-[0.9rem] text-warn">! {w}</li>)}</ul>
       )}
-      {sim && decision.targetChain === "robinhood" && (
+      {sim && decision.targetChain === "robinhood" && !decision.targetDirect && (
         <p className="mt-4 text-sm text-ink-3">Two signatures on {decision.position.chain === "base" ? "Base" : "Ethereum"}, then one to three on Robinhood Chain once the funds arrive. Your wallet will be asked to switch networks.</p>
       )}
 

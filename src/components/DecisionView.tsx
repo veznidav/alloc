@@ -32,6 +32,7 @@ export function DecisionView({ decision, actions }: { decision: Decision; action
         <div className="mt-1 flex flex-wrap items-center gap-3">
           <h2 className="display text-[2rem] font-bold sm:text-[2.4rem]">{ACTION_LABEL[d.action]}</h2>
           <span className={`pill ${ACTION_PILL[d.action]}`}>{d.action === "HOLD" ? "No action" : d.targetSymbol}</span>
+          {d.targetKind === "meme" && <span className="pill bg-danger-soft text-danger">Meme token · speculative</span>}
         </div>
         <p className="mt-2 max-w-[60ch] text-[1rem] leading-relaxed text-ink-2">{d.summary}</p>
         <p className="mt-2 text-sm text-ink-3">
@@ -50,7 +51,7 @@ export function DecisionView({ decision, actions }: { decision: Decision; action
           <div className="mt-2 grid gap-x-8 gap-y-3 sm:grid-cols-2">
             <div className="sm:col-span-2 text-[1.15rem] font-semibold">
               {d.position.symbol} <span className="text-ink-3">→</span> {d.targetSymbol}
-              <span className="ml-2 text-[0.9rem] font-normal text-ink-3">{d.targetChain === "robinhood" ? "on Robinhood Chain" : "same chain"}</span>
+              <span className="ml-2 text-[0.9rem] font-normal text-ink-3">{d.targetChain === "robinhood" ? (d.targetDirect ? "on Robinhood Chain, one step" : "on Robinhood Chain") : "same chain"}</span>
             </div>
             <Row label="Amount" value={`${usd(d.amountUsd)} (${d.allocationPct}% of position)`} />
             <Row label="Estimated cost" value={`${usd(d.estimatedCostUsd)} · ${pct(d.estimatedCostPct, 2, false)}`} />

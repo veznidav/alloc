@@ -1,5 +1,5 @@
 export type SourceChain = "ethereum" | "base";
-export type RiskTolerance = "conservative" | "balanced" | "aggressive";
+export type RiskTolerance = "conservative" | "balanced" | "aggressive" | "degen";
 export type ApprovalMode = "recommend" | "autonomous";
 export type Action = "HOLD" | "MOVE_TO_STABLECOIN" | "MOVE_TO_ROBINHOOD";
 export type Confidence = "low" | "medium" | "high";
@@ -15,6 +15,7 @@ export const RISK_PROFILES: Record<RiskTolerance, { label: string; tagline: stri
   conservative: { label: "Conservative", tagline: "Protect first", description: "Large caps and index ETFs only. Quick to de-risk into USDC when the position weakens." },
   balanced: { label: "Balanced", tagline: "Steady upside", description: "Large caps, ETFs and established growth names. Moves only on a clear improvement after costs." },
   aggressive: { label: "Aggressive", tagline: "Chase asymmetry", description: "Opens the full Robinhood Chain universe, including small and mid caps with asymmetric upside. Accepts drawdowns for convexity." },
+  degen: { label: "Degen", tagline: "Memes allowed", description: "Everything Aggressive sees, plus meme tokens discovered live on Robinhood Chain. No reference price, no floor. Tokens can go to zero." },
 };
 
 export const DEFAULT_PREFERENCES: Preferences = {
@@ -84,8 +85,12 @@ export interface Score {
 }
 
 export interface Alternative {
-  kind: "stablecoin" | "robinhood";
+  kind: "stablecoin" | "robinhood" | "meme";
   score?: Score | null;
+  /** Meme tokens only: age of the deepest pool in days. */
+  ageDays?: number | null;
+  /** True when Relay can deliver the destination token directly in one leg. */
+  direct?: boolean;
   symbol: string;
   name: string;
   address: string;
@@ -118,6 +123,8 @@ export interface Decision {
   targetSymbol: string | null;
   targetAddress: string | null;
   targetChain: "ethereum" | "base" | "robinhood" | null;
+  targetKind: "stablecoin" | "robinhood" | "meme" | null;
+  targetDirect: boolean;
   allocationPct: number; // share of position to move (0 for HOLD)
   amountUsd: number;
   expectedOpportunityPct: number | null;
@@ -157,6 +164,6 @@ export type AllocEvent =
   | { type: "position"; position: Position }
   | { type: "context"; context: MarketContext }
   | { type: "route"; label: string; costPct: number | null; seconds: number | null; ok: boolean }
-  | { type: "candidate"; symbol: string; name: string; priceUsd: number | null; premiumPct: number | null; change24hPct: number | null; hopCostPct: number | null; routable: boolean }
+  | { type: "candidate"; symbol: string; name: string; priceUsd: number | null; premiumPct: number | null; change24hPct: number | null; hopCostPct: number | null; routable: boolean; kind?: "robinhood" | "meme" }
   | { type: "decision"; decision: Decision }
   | { type: "error"; message: string };

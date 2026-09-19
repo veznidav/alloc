@@ -19,12 +19,12 @@ export function ComparePanel({ position, preferences, onPick }: { position: Posi
 
   return (
     <section className="card p-6 sm:p-8">
-      <p className="text-sm text-ink-3">Same position, three temperaments</p>
+      <p className="text-sm text-ink-3">Same position, four temperaments</p>
       <h2 className="mt-1 text-2xl font-bold">How each profile would decide right now</h2>
       {error && <p className="mt-4 text-danger">{error}</p>}
-      {!rows && !error && <p className="thinking mt-4 text-ink-2">Running three SERV decisions in parallel…</p>}
+      {!rows && !error && <p className="thinking mt-4 text-ink-2">Running four SERV decisions in parallel…</p>}
       {rows && (
-        <div className="mt-6 grid gap-3 sm:grid-cols-3">
+        <div className="mt-6 grid gap-3 sm:grid-cols-2">
           {rows.map((r) => {
             const prof = RISK_PROFILES[r.risk];
             const d = r.decision;

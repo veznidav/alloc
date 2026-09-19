@@ -46,7 +46,7 @@ export function Progress({ stage, feed }: { stage: Stage; feed: AllocEvent[] }) 
             <ul className="mt-3 grid grid-cols-2 gap-x-6 gap-y-1 sm:grid-cols-3">
               {cands.map((c) => (
                 <li key={c.symbol} className="flex justify-between gap-2 reveal">
-                  <span className={c.routable ? "font-semibold" : "text-ink-3"}>{c.symbol}</span>
+                  <span className={c.routable ? "font-semibold" : "text-ink-3"}>{c.symbol}{c.kind === "meme" && <span className="ml-1 text-xs font-normal text-danger">meme</span>}</span>
                   <span className={`tnum ${c.routable ? "text-ink-2" : "text-ink-3"}`}>{c.routable ? `${pct(c.change24hPct)} · ${pct(c.hopCostPct, 2, false)}` : "no depth"}</span>
                 </li>
               ))}

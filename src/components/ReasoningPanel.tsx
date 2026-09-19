@@ -2,7 +2,7 @@ import { pct, usd } from "@/lib/format";
 import type { Decision } from "@/lib/types";
 
 export function ReasoningPanel({ decision: d }: { decision: Decision }) {
-  const stock = d.alternatives.filter((a) => a.kind === "robinhood");
+  const stock = d.alternatives.filter((a) => a.kind === "robinhood" || a.kind === "meme");
   const stable = d.alternatives.find((a) => a.kind === "stablecoin");
   return (
     <div className="space-y-8">
@@ -46,7 +46,7 @@ export function ReasoningPanel({ decision: d }: { decision: Decision }) {
               )}
               {stock.map((a) => (
                 <tr key={a.symbol} className="border-t border-line">
-                  <td className="py-2 font-semibold">{a.symbol}</td>
+                  <td className="py-2 font-semibold">{a.symbol}{a.kind === "meme" && <span className="ml-1 text-xs font-normal text-danger">meme · {a.ageDays?.toFixed(0)}d</span>}</td>
                   <td>{usd(a.priceUsd, { decimals: 2 })}</td>
                   <td className={(a.market?.priceChange.h24 ?? 0) >= 0 ? "text-robinhood" : "text-danger"}>{pct(a.market?.priceChange.h24)}</td>
                   <td className={(a.market?.momentum?.change30dPct ?? 0) >= 0 ? "text-robinhood" : "text-danger"}>{pct(a.market?.momentum?.change30dPct)}</td>

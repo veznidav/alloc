@@ -3,6 +3,7 @@ import { CHAIN_IDS, CHAIN_LABELS, RH, USDC } from "./chains";
 import { marketContext } from "./market";
 import { relayCostSummary, relayQuote } from "./relay";
 import { candidateData, tierOf } from "./robinhood";
+import { memeData } from "./memes";
 import { reasonDecision } from "./serv";
 import type { Alternative, AllocEvent, Decision, MarketContext, Momentum, Position, Preferences, Score } from "./types";
 
@@ -15,12 +16,15 @@ function riskGuidance(p: Preferences) {
   switch (p.risk) {
     case "conservative": return "Conservative: prefer capital preservation. Move to a stablecoin readily when the current asset shows weakness, thin liquidity or a sharp drawdown; require very strong, well-supported evidence and high confidence before moving into a Robinhood Chain asset; when in doubt, HOLD or de-risk.";
     case "aggressive": return "Aggressive: the user wants asymmetric upside and accepts drawdowns. Prefer smaller, higher-volatility names with strong momentum over mega caps when the modelled edge is comparable; volatility is convexity here, not a flaw. Use stablecoins only when the current asset is collapsing and no growth alternative is live.";
+    case "degen": return "Degen: the user explicitly allows meme tokens on Robinhood Chain and accepts that they can go to zero. Memes have no reference price and no fundamentals; judge them on depth, age, sustained volume, and momentum that is not a one-day spike. A daily move above +100% or a pool younger than two weeks is a red flag, not an opportunity. A seasoned meme (pool at least 30 days old, liquidity above $1M, no daily move above +100%) whose modelled net advantage beats the best stock by 5 points or more should be chosen over the stock: that is what this profile is for. Younger or thinner memes lose to a stock with a comparable edge. Confidence for a meme move can never be high.";
     default: return "Balanced: balance upside against drawdown risk. Move only when the improvement is clear after costs, and size positions cautiously.";
   }
 }
 
 /** Volatility penalty per profile. Aggressive treats volatility as convexity: a small bonus rather than a penalty. */
-const LAMBDA: Record<Preferences["risk"], number> = { conservative: 0.4, balanced: 0.25, aggressive: -0.05 };
+const LAMBDA: Record<Preferences["risk"], number> = { conservative: 0.4, balanced: 0.25, aggressive: -0.05, degen: -0.08 };
+/** The convexity bonus is capped so a 2,000%-in-a-day pump cannot dominate the score. */
+const MAX_BONUS_VOL = 60;
 const clamp = (n: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, n));
 
 /**
@@ -36,7 +40,9 @@ export function scoreAsset(mo: Momentum | null | undefined, risk: Preferences["r
   const c7 = mo?.change7dPct ?? (opts.h24 ?? 0);
   const mu = clamp(0.5 * c30 + 0.25 * (c90 / 3) + 0.25 * (c7 * 2), -30, 30);
   const vol = (mo?.volatility30dPct ?? 80) / Math.sqrt(12);
-  return { expectedReturn30dPct: mu, monthlyVolatilityPct: vol, riskAdjustedPct: mu - LAMBDA[risk] * vol, advantagePct: null };
+  const lambda = LAMBDA[risk];
+  const volForScore = lambda < 0 ? Math.min(vol, MAX_BONUS_VOL) : vol;
+  return { expectedReturn30dPct: mu, monthlyVolatilityPct: vol, riskAdjustedPct: mu - lambda * volForScore, advantagePct: null };
 }
 
 function proposedAmountUsd(position: Position, prefs: Preferences) {
@@ -51,7 +57,7 @@ export async function gatherAlternatives(position: Position, prefs: Preferences,
   const originChainId = CHAIN_IDS[position.chain];
 
   emit({ type: "stage", stage: "market" });
-  const [context, stableQuote, usdgQuote, candidates] = await Promise.all([
+  const [context, stableQuote, usdgQuote, candidates, memes] = await Promise.all([
     marketContext().then((c) => { emit({ type: "context", context: c }); return c; }),
     position.isStablecoin ? Promise.resolve(null) : relayQuote({ originChainId, destinationChainId: originChainId, originCurrency: position.token, destinationCurrency: USDC[position.chain], amount: rawAmount.toString() })
       .then((q) => { const c = relayCostSummary(q); emit({ type: "route", label: `${position.symbol} → USDC on ${CHAIN_LABELS[position.chain]}`, costPct: c.costPct, seconds: c.seconds, ok: true }); return q; })
@@ -59,7 +65,8 @@ export async function gatherAlternatives(position: Position, prefs: Preferences,
     relayQuote({ originChainId, destinationChainId: 4663, originCurrency: position.token, destinationCurrency: RH.USDG, amount: rawAmount.toString() })
       .then((q) => { const c = relayCostSummary(q); emit({ type: "route", label: `${position.symbol} → USDG on Robinhood Chain`, costPct: c.costPct, seconds: c.seconds, ok: true }); return q; })
       .catch((e: Error) => { emit({ type: "route", label: `${position.symbol} → USDG on Robinhood Chain`, costPct: null, seconds: null, ok: false }); return { error: e.message }; }),
-    candidateData(amountUsd, prefs.risk, (c) => emit({ type: "candidate", symbol: c.asset.symbol, name: c.asset.name, priceUsd: c.priceUsd, premiumPct: c.premiumPct, change24hPct: c.market?.priceChange.h24 ?? null, hopCostPct: c.hopCostPct, routable: c.hopCostPct != null && c.hopCostPct <= 10 })),
+    candidateData(amountUsd, prefs.risk, (c) => emit({ type: "candidate", symbol: c.asset.symbol, name: c.asset.name, priceUsd: c.priceUsd, premiumPct: c.premiumPct, change24hPct: c.market?.priceChange.h24 ?? null, hopCostPct: c.hopCostPct, routable: c.hopCostPct != null && c.hopCostPct <= 10, kind: "robinhood" })),
+    prefs.risk === "degen" ? memeRoutes(position, rawAmount, originChainId, emit) : Promise.resolve([] as MemeRoute[]),
   ]);
 
   const alternatives: Alternative[] = [];
@@ -99,7 +106,48 @@ export async function gatherAlternatives(position: Position, prefs: Preferences,
       routeSeconds: bridge?.seconds ?? null,
     });
   }
+  for (const m of memes) {
+    alternatives.push({
+      kind: "meme", symbol: m.data.meme.symbol, name: m.data.meme.name, address: m.data.meme.address, chain: "robinhood",
+      priceUsd: m.data.market?.priceUsd ?? null, referencePriceUsd: null, premiumPct: null, market: m.data.market, ageDays: m.data.meme.ageDays, direct: m.direct,
+      score: withAdvantage(scoreAsset(m.data.market?.momentum, prefs.risk, { h24: m.data.market?.priceChange.h24 }), m.costPct),
+      routeCostPct: m.costPct,
+      routeDescription: m.costPct == null ? "Route unavailable (no direct route and no USDG pool with enough depth)" : m.direct ? `Direct: ${position.symbol} → ${m.data.meme.symbol} on Robinhood Chain in one step` : `${position.symbol} → USDG on Robinhood Chain, then USDG → ${m.data.meme.symbol}`,
+      routeSeconds: m.seconds,
+    });
+  }
   return { alternatives, context };
+}
+
+interface MemeRoute { data: Awaited<ReturnType<typeof memeData>>[number]; costPct: number | null; direct: boolean; seconds: number | null }
+
+/** Memes: try Relay's direct route first (one signature), fall back to the USDG hop. */
+async function memeRoutes(position: Position, rawAmount: bigint, originChainId: number, emit: Emit): Promise<MemeRoute[]> {
+  const { mapLimit } = await import("./cache");
+  const { quoteV4 } = await import("./robinhood");
+  const { formatUnits } = await import("viem");
+  const list = await memeData();
+  return mapLimit(list, 3, async (data) => {
+    let costPct: number | null = null, direct = false, seconds: number | null = null;
+    try {
+      const q = await relayQuote({ originChainId, destinationChainId: 4663, originCurrency: position.token, destinationCurrency: data.meme.address, amount: rawAmount.toString() });
+      const c = relayCostSummary(q);
+      if (c.costPct <= 10) { costPct = c.costPct; direct = true; seconds = c.seconds; }
+    } catch { /* no direct route */ }
+    if (costPct == null && data.market?.priceUsd) {
+      try {
+        const usdgIn = BigInt(Math.round(Number(formatUnits(rawAmount, position.decimals)) * position.priceUsd * 1e6));
+        const q = await quoteV4(RH.USDG, data.meme.address, usdgIn > 0n ? usdgIn : 1_000_000n);
+        if (q) {
+          const out = Number(formatUnits(q.amountOut, data.meme.decimals));
+          const hop = Math.max(0, (1 - (out * data.market.priceUsd) / Number(formatUnits(usdgIn, 6))) * 100);
+          if (hop <= 10) { costPct = hop + 0.6; seconds = 60; } // + typical bridge leg cost
+        }
+      } catch { /* no pool */ }
+    }
+    emit({ type: "candidate", symbol: data.meme.symbol, name: data.meme.name, priceUsd: data.market?.priceUsd ?? null, premiumPct: null, change24hPct: data.market?.priceChange.h24 ?? null, hopCostPct: costPct, routable: costPct != null, kind: "meme" });
+    return { data, costPct, direct, seconds };
+  });
 }
 
 function describePosition(p: Position) {
@@ -121,6 +169,10 @@ function describeMomentum(mo: Momentum | null | undefined) {
 }
 
 function describeAlternative(a: Alternative) {
+  if (a.kind === "meme") {
+    const m = a.market;
+    return `- ${a.symbol} (${a.name}, MEME TOKEN on Robinhood Chain, no reference price). Price ${fmtUsd(a.priceUsd)}; FDV ${fmtUsd(m?.fdvUsd)}; pool age ${a.ageDays?.toFixed(0) ?? "?"} days; liquidity ${fmtUsd(m?.liquidityUsd)}; 24h volume ${fmtUsd(m?.volume24hUsd)}; 24h trades ${m?.txns24h ? `${m.txns24h.buys} buys / ${m.txns24h.sells} sells` : "n/a"}. Price change 1h ${fmtPct(m?.priceChange.h1)}, 6h ${fmtPct(m?.priceChange.h6)}, 24h ${fmtPct(m?.priceChange.h24)}; ${describeMomentum(m?.momentum).replace("Longer-term performance", "longer-term")}. Route: ${a.routeDescription}. All-in move cost: ${a.routeCostPct == null ? "no live route (do not choose)" : fmtPct(a.routeCostPct, 2).replace("+", "")}. Alloc model: expected 30d return ${fmtPct(a.score?.expectedReturn30dPct, 1)}, risk-adjusted ${fmtPct(a.score?.riskAdjustedPct, 1)}, modelled net advantage over current asset after costs ${a.score?.advantagePct == null ? "n/a" : fmtPct(a.score.advantagePct, 1)}.`;
+  }
   if (a.kind === "stablecoin") {
     return `- USDC (stablecoin, same chain). Risk-adjusted score 0.0%. Modelled net advantage over current asset after costs: ${a.score?.advantagePct == null ? "n/a" : fmtPct(a.score.advantagePct, 1)}. Move cost for the proposed amount: ${a.routeCostPct == null ? "no live route" : fmtPct(a.routeCostPct, 2).replace("+", "")}.`;
   }
@@ -147,7 +199,8 @@ Hard rules:
 6. Thin liquidity relative to the amount being moved raises cost and risk.
 7. Cite the supplied numbers in the reasoning. Do not invent data, news, or prices. Weakness in the current asset (falling over 30d/90d, far below its high, very high volatility) is a reason to move; strength is a reason to stay. Set confidence from how far the chosen option clears the threshold and how consistent the signals are.
 8. Write for a consumer: plain language, no bridges/routes/pools jargon, no hedging boilerplate. Never use first person ("I"); write as Alloc in the third person or imperative, and address the user as "you" (never "the user"). Do not mention that you are an AI.
-9. why_not must contain one entry for every alternative you did not choose (USDC, each Robinhood asset) and, when you move, the current asset. Use the asset symbol as the option name.
+9. why_not must contain one entry for every alternative you did not choose (USDC, each Robinhood asset, each meme) and, when you move, the current asset. Use the asset symbol as the option name.
+11. Meme tokens appear only when the user's profile allows them. When you choose a meme, warnings must state plainly that it has no reference price, can lose most or all of its value, and that the position is speculative; confidence must be low or medium.
 10. headline is at most 6 words.`;
 
   const user = `Timestamp: ${new Date().toISOString()}
@@ -191,6 +244,8 @@ Decide where this capital should be, and explain it.`;
     targetSymbol: target?.symbol ?? null,
     targetAddress: target?.address ?? null,
     targetChain: target?.chain ?? null,
+    targetKind: target?.kind ?? null,
+    targetDirect: !!target?.direct,
     allocationPct,
     amountUsd,
     expectedOpportunityPct: action === "HOLD" ? null : d.expected_opportunity_pct,

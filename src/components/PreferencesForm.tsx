@@ -7,13 +7,13 @@ export function PreferencesForm({ compact }: { compact?: boolean } = {}) {
   return (
     <div className={compact ? "space-y-6" : "space-y-8"}>
       <Field label="Risk profile" hint="Sets which Robinhood Chain assets Alloc may consider and how it weighs volatility.">
-        <div className="grid gap-2 sm:grid-cols-3" role="group">
+        <div className="grid gap-2 sm:grid-cols-2" role="group">
           {(Object.keys(RISK_PROFILES) as RiskTolerance[]).map((r) => {
             const prof = RISK_PROFILES[r];
             const on = p.risk === r;
             return (
               <button key={r} type="button" aria-pressed={on} onClick={() => setPreferences({ risk: r })}
-                className={`flex flex-col items-start rounded-xl border p-3 text-left transition-colors ${on ? "border-ink bg-ink text-white" : "border-line hover:border-line-strong"}`}>
+                className={`flex flex-col items-start rounded-xl border p-3 text-left transition-colors ${on ? (r === "degen" ? "border-danger bg-danger text-white" : "border-ink bg-ink text-white") : "border-line hover:border-line-strong"}`}>
                 <span className="block font-semibold">{prof.label}</span>
                 <span className={`block text-xs ${on ? "text-white/70" : "text-ink-3"}`}>{prof.tagline}</span>
                 <span className={`mt-2 block text-[0.8rem] leading-snug ${on ? "text-white/85" : "text-ink-2"}`}>{prof.description}</span>

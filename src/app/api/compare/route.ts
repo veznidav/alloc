@@ -12,7 +12,7 @@ export async function POST(req: Request) {
     const body = (await req.json()) as { position: PositionInput; preferences?: Partial<Preferences> };
     const base: Preferences = { ...DEFAULT_PREFERENCES, ...(body.preferences || {}) };
     const position = await resolvePosition(body.position);
-    const profiles: RiskTolerance[] = ["conservative", "balanced", "aggressive"];
+    const profiles: RiskTolerance[] = ["conservative", "balanced", "aggressive", "degen"];
     const decisions = await Promise.all(profiles.map((risk) => evaluatePosition(position, { ...base, risk }, "playground").then((d) => ({ risk, decision: d })).catch((e: Error) => ({ risk, error: e.message }))));
     return NextResponse.json({ decisions: decisions as ({ risk: RiskTolerance; decision: Decision } | { risk: RiskTolerance; error: string })[] });
   } catch (e) {
