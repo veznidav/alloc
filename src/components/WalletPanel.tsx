@@ -6,6 +6,7 @@ import { num, shortAddr, usd } from "@/lib/format";
 import { CHAIN_LABELS } from "@/lib/chains";
 import type { PositionInput, SourceChain } from "@/lib/types";
 import { PreferencesBlock } from "./PreferencesBlock";
+import { Working } from "./Working";
 
 export interface Holding { chain: SourceChain; token: string; symbol: string; name: string; decimals: number; balance: string; priceUsd?: number | null; valueUsd?: number | null; logo?: string | null }
 
@@ -88,7 +89,7 @@ export function WalletPanel({ onSelect, busy }: { onSelect: (p: PositionInput) =
           action={picked && step > 2 ? <button className="btn btn-secondary btn-sm" onClick={() => setPicked(null)}>Change</button> : undefined}>
           {step === 2 && (
             <>
-              {isFetching && !holdings && <p className="thinking text-ink-2">Reading your balances on Base and Ethereum…</p>}
+              {isFetching && !holdings && <Working label="Reading your balances on Base and Ethereum" detail="Native ETH, USDC and every token the explorers index, priced live" />}
               {isError && <p className="text-danger">Could not read balances. Try again in a moment.</p>}
               {holdings && holdings.length > 0 && (
                 <>

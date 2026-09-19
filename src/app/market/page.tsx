@@ -2,6 +2,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { pct, usd } from "@/lib/format";
+import { Working } from "@/components/Working";
 
 interface Row { symbol: string; name: string; tier: "core" | "large" | "growth" | "meme"; ageDays?: number; fdvUsd?: number | null; priceUsd: number | null; referencePriceUsd: number | null; premiumPct: number | null; change24hPct: number | null; change30dPct: number | null; volatility30dPct: number | null; liquidityUsd: number | null; volume24hUsd: number | null; hopCostPct: number | null; protocol: string | null; logoUrl: string | null }
 
@@ -30,7 +31,7 @@ export default function MarketPage() {
           <option value="liquidity">Most liquid</option><option value="change24h">Top 24h</option><option value="change30d">Top 30d</option><option value="premium">Highest premium</option>
         </select>
       </div>
-      {isLoading && <p className="thinking text-ink-2">Reading prices, reference feeds and pool depth…</p>}
+      {isLoading && <Working size="lg" label="Reading the market" detail="Prices, Chainlink references and pool depth for every routable asset. First load takes a little longer." />}
       {error && <p className="text-danger">{(error as Error).message}</p>}
       {data && (
         <div className="card overflow-x-auto">

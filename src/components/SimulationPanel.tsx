@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { num, pct, usd } from "@/lib/format";
 import type { Decision, Simulation } from "@/lib/types";
 import { post } from "./useEvaluate";
+import { Working } from "./Working";
 
 export function SimulationPanel({ decision, onBack, onAnother }: { decision: Decision; onBack: () => void; onAnother: () => void }) {
   const [sim, setSim] = useState<Simulation | null>(null);
@@ -18,7 +19,7 @@ export function SimulationPanel({ decision, onBack, onAnother }: { decision: Dec
       <p className="text-sm text-ink-3">Simulation</p>
       <h2 className="mt-1 text-2xl font-bold">If you approved this now</h2>
       {error && <p className="mt-4 text-danger">{error}</p>}
-      {!sim && !error && <p className="thinking mt-4 text-ink-2">Getting a live quote for the exact amount…</p>}
+      {!sim && !error && <div className="mt-6"><Working label="Getting a live quote for the exact amount" detail="Relay route and on-chain pool depth, priced right now" tone="robinhood" /></div>}
       {sim && (
         <div className="mt-6 space-y-6">
           <dl className="grid gap-x-8 gap-y-3 sm:grid-cols-2">

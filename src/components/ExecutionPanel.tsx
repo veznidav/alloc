@@ -7,6 +7,7 @@ import { num, pct, usd } from "@/lib/format";
 import { wagmiConfig } from "@/lib/wagmi";
 import type { Decision, Simulation } from "@/lib/types";
 import { post } from "./useEvaluate";
+import { Working } from "./Working";
 
 interface StepItem { status: string; data: { from: string; to: string; data: `0x${string}`; value: string; chainId: number; gas?: string } }
 interface Step { id: string; kind: string; description: string; requestId?: string; items: StepItem[] }
@@ -100,7 +101,7 @@ export function ExecutionPanel({ decision, onDone, onReject }: { decision: Decis
       <p className="text-sm text-ink-3">Real mode · real assets, real transactions</p>
       <h2 className="mt-1 text-2xl font-bold">{phase === "done" ? "Done" : auto ? "Executing under your rules" : "Approve this move?"}</h2>
 
-      {!plan && !error && <p className="thinking mt-4 text-ink-2">Preparing the exact transactions…</p>}
+      {!plan && !error && <div className="mt-6"><Working label="Preparing the exact transactions" detail="Live quote for your wallet, approvals and the swap, ready to sign" tone="robinhood" /></div>}
       {sim && (
         <dl className="mt-6 grid gap-x-8 gap-y-3 sm:grid-cols-2">
           <Item label="Selling" value={`${num(sim.amountTokens)} ${decision.position.symbol}`} sub={usd(sim.amountUsd)} />
@@ -116,6 +117,9 @@ export function ExecutionPanel({ decision, onDone, onReject }: { decision: Decis
         <p className="mt-4 text-sm text-ink-3">Two signatures on {decision.position.chain === "base" ? "Base" : "Ethereum"}, then one to three on Robinhood Chain once the funds arrive. Your wallet will be asked to switch networks.</p>
       )}
 
+      {(phase === "signing" || phase === "bridging" || phase === "leg2") && (
+        <div className="mt-5"><Working label={phase === "bridging" ? "Funds are moving to Robinhood Chain" : phase === "leg2" ? "Buying on Robinhood Chain" : "Waiting for your wallet"} detail={phase === "bridging" ? "Relay is delivering USDG; this usually takes under a minute" : phase === "leg2" ? "Sign the remaining steps in your wallet" : "Confirm the transaction in your wallet"} tone="robinhood" /></div>
+      )}
       {log.length > 0 && (
         <ol className="mt-5 space-y-1 text-sm text-ink-2">{log.map((l, i) => <li key={i} className={i === log.length - 1 && phase !== "done" && phase !== "failed" ? "thinking" : ""}>{l}</li>)}</ol>
       )}

@@ -4,6 +4,7 @@ import { pct, usd } from "@/lib/format";
 import { RISK_PROFILES, type Decision, type PositionInput, type Preferences, type RiskTolerance } from "@/lib/types";
 import { ACTION_LABEL, ACTION_PILL } from "./DecisionView";
 import { post } from "./useEvaluate";
+import { Working } from "./Working";
 
 type Row = { risk: RiskTolerance; decision?: Decision; error?: string };
 
@@ -22,7 +23,7 @@ export function ComparePanel({ position, preferences, onPick }: { position: Posi
       <p className="text-sm text-ink-3">Same position, four temperaments</p>
       <h2 className="mt-1 text-2xl font-bold">How each profile would decide right now</h2>
       {error && <p className="mt-4 text-danger">{error}</p>}
-      {!rows && !error && <p className="thinking mt-4 text-ink-2">Running four SERV decisions in parallel…</p>}
+      {!rows && !error && <div className="mt-6"><Working size="lg" label="SERV is reasoning four times" detail="Conservative, Balanced, Aggressive and Degen, each with its own universe and rules. Usually 15 to 25 seconds." /></div>}
       {rows && (
         <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           {rows.map((r) => {

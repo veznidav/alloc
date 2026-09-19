@@ -1,7 +1,9 @@
 "use client";
+import { useEffect, useRef } from "react";
 import { pct } from "@/lib/format";
 import type { AllocEvent } from "@/lib/types";
 import type { Stage } from "./useEvaluate";
+import { Working } from "./Working";
 
 const steps: { key: Stage; label: string }[] = [
   { key: "position", label: "Reading the position" },
@@ -16,9 +18,17 @@ export function Progress({ stage, feed }: { stage: Stage; feed: AllocEvent[] }) 
   const routes = feed.filter((e): e is Extract<AllocEvent, { type: "route" }> => e.type === "route");
   const cands = feed.filter((e): e is Extract<AllocEvent, { type: "candidate" }> => e.type === "candidate");
   const ctx = feed.find((e): e is Extract<AllocEvent, { type: "context" }> => e.type === "context");
+  const reasoning = stage === "reasoning";
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => { ref.current?.scrollIntoView({ behavior: "smooth", block: "nearest" }); }, []);
   return (
-    <div className="card p-5 sm:p-6">
-      <ul className="space-y-2">
+    <div ref={ref} className="card p-5 sm:p-6">
+      {reasoning ? (
+        <Working size="lg" label="SERV is reasoning" detail={`Weighing ${cands.length} destinations and ${routes.length} routes against your preferences, then writing the explanation. Usually 10 to 20 seconds.`} />
+      ) : (
+        <Working label={stage === "position" ? "Reading the position" : "Pricing alternatives and live routes"} detail={stage === "position" ? "Token, price, momentum and liquidity" : "Relay quotes, on-chain pools, Chainlink references"} />
+      )}
+      <ul className="mt-5 space-y-2">
         {steps.map((s, i) => (
           <li key={s.key} className={`flex items-center gap-3 text-[0.95rem] ${i === idx ? "text-ink" : "text-ink-3"}`}>
             <span aria-hidden className={`inline-block h-2 w-2 rounded-full ${i < idx ? "bg-line-strong" : i === idx ? "thinking bg-ink" : "bg-line"}`} />

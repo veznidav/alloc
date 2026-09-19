@@ -107,3 +107,15 @@ label.lbl { display: block; font-size: .875rem; color: var(--ink-2); margin-bott
 @media (prefers-reduced-motion: reduce) { .spine-line, .reveal, .thinking { animation: none !important; } }
 
 a:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+
+/* Working indicator: ring + sweeping bar, used whenever SERV or a quote is in flight */
+.ring { width: 1.5rem; height: 1.5rem; border-radius: 999px; border: 3px solid var(--line); border-top-color: var(--ink); animation: spin .9s linear infinite; }
+.ring-lg { width: 2.25rem; height: 2.25rem; border-width: 4px; }
+.sweep { position: relative; height: 4px; overflow: hidden; border-radius: 999px; background: var(--line); }
+.sweep::after { content: ""; position: absolute; inset: 0; width: 40%; border-radius: 999px; background: linear-gradient(90deg, transparent, var(--ink), transparent); animation: sweep 1.4s ease-in-out infinite; }
+.sweep-robinhood::after { background: linear-gradient(90deg, transparent, var(--robinhood), transparent); }
+.dots::after { content: ""; display: inline-block; width: 1.2em; text-align: left; animation: dots 1.5s steps(4, end) infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+@keyframes sweep { 0% { transform: translateX(-100%); } 100% { transform: translateX(260%); } }
+@keyframes dots { 0% { content: ""; } 25% { content: "."; } 50% { content: ".."; } 75% { content: "..."; } }
+@media (prefers-reduced-motion: reduce) { .ring, .sweep::after, .dots::after { animation: none !important; } .ring { border-top-color: var(--line-strong); } }
