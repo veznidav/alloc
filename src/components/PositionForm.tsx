@@ -7,6 +7,7 @@ const EXAMPLES: { label: string; chain: SourceChain; token: string; amount: stri
   { label: "25 ETH on Base", chain: "base", token: "ETH", amount: "25" },
   { label: "50,000 USDC on Base", chain: "base", token: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913", amount: "50000" },
   { label: "3,000,000 WELL on Base", chain: "base", token: "0xA88594D404727625A9437C3f886C7643872296AE", amount: "3000000" },
+  { label: "2,000,000 SERV on Ethereum", chain: "ethereum", token: "0x40e3d1a4b2c47d9aa61261f5606136ef73e28042", amount: "2000000" },
   { label: "3,000 UNI on Ethereum", chain: "ethereum", token: "0x1f9840a85d5aF5bf1D1762F925BDADdC4201F984", amount: "3000" },
 ];
 

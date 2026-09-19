@@ -9,10 +9,12 @@ export interface TokenMeta { symbol: string; name: string; decimals: number; add
 
 export async function tokenMeta(chain: SourceChain, token: string): Promise<TokenMeta> {
   if (token === NATIVE || token.toLowerCase() === "eth") return { symbol: "ETH", name: "Ether", decimals: 18, address: NATIVE };
-  if (!isAddress(token)) throw new Error("Enter a valid token contract address (0x…) or ETH.");
-  const address = getAddress(token);
+  if (!isAddress(token, { strict: false })) throw new Error("Enter a valid token contract address (0x followed by 40 hex characters) or ETH.");
+  const address = getAddress(token.toLowerCase());
   return cached(`meta:${chain}:${address}`, 24 * 3600_000, async () => {
     const client = publicClient(chain);
+    const code = await client.getCode({ address }).catch(() => undefined);
+    if (!code || code === "0x") throw new Error(`No contract found at ${address} on ${chain === "base" ? "Base" : "Ethereum"}. Check the address and the selected chain.`);
     const [symbol, name, decimals] = await Promise.all([
       client.readContract({ address, abi: erc20Abi, functionName: "symbol" }).catch(() => null),
       client.readContract({ address, abi: erc20Abi, functionName: "name" }).catch(() => null),
