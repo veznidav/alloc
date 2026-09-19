@@ -4,6 +4,7 @@ import { DecisionView } from "@/components/DecisionView";
 import { PositionForm } from "@/components/PositionForm";
 import { Progress } from "@/components/Progress";
 import { WatchToggle } from "@/components/WatchToggle";
+import { ReevaluateBlock } from "@/components/ReevaluateBlock";
 import { SimulationPanel } from "@/components/SimulationPanel";
 import { ComparePanel } from "@/components/ComparePanel";
 import { PositionSummary } from "@/components/PositionCard";
@@ -73,7 +74,6 @@ export default function PlaygroundPage() {
             <>
               {playgroundDecision.action !== "HOLD" && <button className={`btn ${playgroundDecision.action === "MOVE_TO_ROBINHOOD" ? "btn-robinhood" : "btn-stable"}`} onClick={() => { setView("simulate"); updateDecision(playgroundDecision.id, { status: "simulated" }); }}>Simulate</button>}
               <button className="btn btn-secondary" onClick={() => setView("compare")}>Compare profiles</button>
-              <button className="btn btn-secondary" onClick={reevaluate}>Re-evaluate</button>
             </>
           }
         />
@@ -91,7 +91,10 @@ export default function PlaygroundPage() {
       )}
 
       {view === "decision" && playgroundDecision && !busy && (
-        <div className="px-1"><WatchToggle onTick={reevaluate} /></div>
+        <>
+          <ReevaluateBlock onReevaluate={reevaluate} busy={busy} />
+          <div className="px-1"><WatchToggle onTick={reevaluate} /></div>
+        </>
       )}
 
       {view === "simulate" && playgroundDecision && (

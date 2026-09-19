@@ -5,6 +5,7 @@ import { DecisionView } from "@/components/DecisionView";
 import { ExecutionPanel } from "@/components/ExecutionPanel";
 import { Progress } from "@/components/Progress";
 import { WatchToggle } from "@/components/WatchToggle";
+import { ReevaluateBlock } from "@/components/ReevaluateBlock";
 import { WalletPanel } from "@/components/WalletPanel";
 import { PositionSummary } from "@/components/PositionCard";
 import { useEvaluate } from "@/components/useEvaluate";
@@ -61,14 +62,17 @@ export default function RealPage() {
                   <button className={`btn ${realDecision.action === "MOVE_TO_ROBINHOOD" ? "btn-robinhood" : "btn-stable"}`} onClick={() => setView("execute")}>Review and approve</button>
                 </>
               )}
-              <button className="btn btn-secondary" onClick={() => realPosition && run({ chain: realPosition.chain, token: realPosition.token, amount: realPosition.amount })}>Re-evaluate</button>
+
             </>
           }
         />
       )}
 
       {view === "decision" && realDecision && !busy && (
-        <div className="px-1"><WatchToggle onTick={() => realPosition && run({ chain: realPosition.chain, token: realPosition.token, amount: realPosition.amount })} /></div>
+        <>
+          <ReevaluateBlock onReevaluate={() => realPosition && run({ chain: realPosition.chain, token: realPosition.token, amount: realPosition.amount })} busy={busy} />
+          <div className="px-1"><WatchToggle onTick={() => realPosition && run({ chain: realPosition.chain, token: realPosition.token, amount: realPosition.amount })} /></div>
+        </>
       )}
 
       {view === "execute" && realDecision && (
