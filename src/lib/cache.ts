@@ -10,6 +10,11 @@ export async function cached<T>(key: string, ttlMs: number, fn: () => Promise<T>
   return value;
 }
 
+export function peek<T>(key: string): T | undefined {
+  const hit = store.get(key);
+  return hit && hit.expires > Date.now() ? (hit.value as T) : undefined;
+}
+
 export async function fetchJson<T>(url: string, init?: RequestInit & { timeoutMs?: number }): Promise<T> {
   const ctrl = new AbortController();
   const t = setTimeout(() => ctrl.abort(), init?.timeoutMs ?? 20000);

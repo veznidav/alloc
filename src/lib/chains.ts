@@ -45,6 +45,8 @@ export const RH = {
   quoter: addr("0x8dc178efb8111bb0973dd9d722ebeff267c98f94"),
   universalRouter: addr("0x8876789976DECBFcbBBe364623C63652dB8c0904"),
   permit2: addr("0x000000000022D473030F116dDEE9F6B43aC78BA3"),
+  v3QuoterV2: addr("0x33e885ed0ec9bf04ecfb19341582aadcb4c8a9e7"),
+  v3SwapRouter02: addr("0xcaf681a66d020601342297493863e78c959e5cb2"),
   usdgUsdFeed: addr("0x61B7e5650328764B076A108EFF5fa7282a1B9aD2"),
 };
 

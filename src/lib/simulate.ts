@@ -8,7 +8,7 @@ import type { Decision, Simulation } from "./types";
 export interface RoutePlan {
   simulation: Simulation;
   relay: RelayQuote | null;
-  leg2: null | { tokenOut: `0x${string}`; symbol: string; decimals: number; usdgIn: string; expectedOut: string; fee: number; tickSpacing: number };
+  leg2: null | { tokenOut: `0x${string}`; symbol: string; decimals: number; usdgIn: string; expectedOut: string; protocol: "v4" | "v3"; fee: number; tickSpacing: number };
 }
 
 /** Build the real route for a decision at the decided size. With `user`, Relay returns signable transactions. */
@@ -61,6 +61,6 @@ export async function planRoute(decision: Decision, user?: `0x${string}`): Promi
       route: [`${p.symbol} → USDG on Robinhood Chain`, `USDG → ${asset.symbol}`], timeSeconds: c.seconds,
     },
     relay: q,
-    leg2: { tokenOut: asset.address, symbol: asset.symbol, decimals: asset.decimals, usdgIn: q.details.currencyOut.amountFormatted, expectedOut: outTokens.toString(), fee: hop.fee, tickSpacing: hop.tickSpacing },
+    leg2: { tokenOut: asset.address, symbol: asset.symbol, decimals: asset.decimals, usdgIn: q.details.currencyOut.amountFormatted, expectedOut: outTokens.toString(), protocol: hop.protocol, fee: hop.fee, tickSpacing: hop.tickSpacing },
   };
 }

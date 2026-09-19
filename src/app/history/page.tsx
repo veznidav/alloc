@@ -4,10 +4,12 @@ import { ACTION_LABEL, ACTION_PILL } from "@/components/DecisionView";
 import { explorerTx } from "@/lib/chains";
 import { usd, when } from "@/lib/format";
 import { useAlloc } from "@/store/useAlloc";
+import { useRouter } from "next/navigation";
 import { useHydrated } from "@/components/useHydrated";
 
 export default function HistoryPage() {
-  const { history, clearHistory } = useAlloc();
+  const { history, clearHistory, setPlaygroundDecision, setPlaygroundPosition } = useAlloc();
+  const router = useRouter();
   const ready = useHydrated();
   if (!ready) return null;
   return (
@@ -39,6 +41,7 @@ export default function HistoryPage() {
               </div>
               <p className="mt-2 text-[0.95rem] text-ink-2">{d.summary}</p>
               <p className="mt-2 text-sm text-ink-3">Evaluated {d.evaluated.join(", ")}.</p>
+              <button className="mt-3 text-sm font-semibold underline" onClick={() => { setPlaygroundPosition(d.position); setPlaygroundDecision(d); router.push("/playground"); }}>Open decision</button>
               {d.executionTxs?.length ? (
                 <ul className="mt-2 flex flex-wrap gap-3 text-sm">
                   {d.executionTxs.map((t) => (

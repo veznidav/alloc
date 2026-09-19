@@ -14,21 +14,19 @@ import type { PositionInput } from "@/lib/types";
 
 export default function RealPage() {
   const { preferences, realPosition, setRealPosition, realDecision, setRealDecision, addDecision, updateDecision } = useAlloc();
-  const { stage, error, resolve, evaluate, reset } = useEvaluate("real");
+  const { stage, error, feed, livePosition, evaluate, reset } = useEvaluate("real");
   const [view, setView] = useState<"pick" | "decision" | "execute">("pick");
   const ready = useHydrated();
-  const busy = stage === "position" || stage === "market" || stage === "reasoning";
+  const busy = stage === "position" || stage === "market" || stage === "routes" || stage === "reasoning";
 
   async function run(input: PositionInput) {
     setRealDecision(null);
-    const position = await resolve(input);
-    if (!position) return;
-    setRealPosition(position);
-    const decision = await evaluate(input, preferences);
-    if (!decision) return;
-    setRealDecision(decision);
-    addDecision(decision);
-    setView(decision.action !== "HOLD" && preferences.approvalMode === "autonomous" ? "execute" : "decision");
+    const result = await evaluate(input, preferences);
+    if (!result) return;
+    setRealPosition(result.position);
+    setRealDecision(result.decision);
+    addDecision(result.decision);
+    setView(result.decision.action !== "HOLD" && preferences.approvalMode === "autonomous" ? "execute" : "decision");
   }
 
   if (!ready) return null;
@@ -43,9 +41,14 @@ export default function RealPage() {
       </div>
 
       {view === "pick" && <WalletPanel onSelect={run} busy={busy} />}
-      {busy && realPosition && view === "pick" && <div className="card p-6"><PositionSummary position={realPosition} /></div>}
-      {busy && <Progress stage={stage} />}
-      {error && <div className="card border-danger/30 bg-danger-soft p-5 text-[0.95rem] text-danger">{error}</div>}
+      {busy && livePosition && <div className="card p-6 reveal"><PositionSummary position={livePosition} /></div>}
+      {busy && <Progress stage={stage} feed={feed} />}
+      {error && (
+        <div className="card border-danger/30 bg-danger-soft p-5 text-[0.95rem] text-danger">
+          <p>{error}</p>
+          <button className="btn btn-secondary btn-sm mt-3" onClick={() => reset()}>Try again</button>
+        </div>
+      )}
 
       {view === "decision" && realDecision && !busy && (
         <DecisionView

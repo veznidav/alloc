@@ -13,6 +13,7 @@ export default function Home() {
         <div className="flex flex-wrap gap-3 pt-2">
           <Link href="/playground" className="btn btn-primary">Try a hypothetical position</Link>
           <Link href="/real" className="btn btn-secondary">Connect a wallet</Link>
+          <Link href="/market" className="btn btn-secondary">See the market</Link>
         </div>
       </section>
 
@@ -33,7 +34,7 @@ export default function Home() {
         <h2 className="text-xl font-bold">How a decision is made</h2>
         <ol className="mt-4 space-y-3 text-[0.95rem] leading-relaxed text-ink-2">
           <li><span className="font-semibold text-ink">Read the position.</span> Live price, momentum, liquidity, volume and market cap for the exact token you hold.</li>
-          <li><span className="font-semibold text-ink">Price the alternatives.</span> USDC on your chain, and nine tokenized stocks on Robinhood Chain, each with its on-chain price, Chainlink reference price and a real quote for moving your amount.</li>
+          <li><span className="font-semibold text-ink">Price the alternatives.</span> USDC on your chain, and the tokenized stocks on Robinhood Chain your profile allows, from index ETFs to small caps, each with its on-chain price, Chainlink reference price and a real quote for moving your amount.</li>
           <li><span className="font-semibold text-ink">Reason with SERV.</span> SERV Reasoning weighs opportunity against cost and risk under your preferences and returns a decision, a plain explanation, and why the other options lost.</li>
           <li><span className="font-semibold text-ink">Simulate or approve.</span> Playground shows the resulting allocation. Real mode prepares the transactions and waits for you.</li>
         </ol>

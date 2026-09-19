@@ -1,6 +1,8 @@
 "use client";
 import { useState } from "react";
-import type { PositionInput, SourceChain } from "@/lib/types";
+import { RISK_PROFILES, type PositionInput, type SourceChain } from "@/lib/types";
+import { useAlloc } from "@/store/useAlloc";
+import { PreferencesForm } from "./PreferencesForm";
 
 const EXAMPLES: { label: string; chain: SourceChain; token: string; amount: string }[] = [
   { label: "1,000,000 AERO on Base", chain: "base", token: "0x940181a94A35A4569E4529A3CDfB74e38FD98631", amount: "1000000" },
@@ -15,6 +17,8 @@ export function PositionForm({ onSubmit, busy, initial }: { onSubmit: (p: Positi
   const [chain, setChain] = useState<SourceChain>(initial?.chain ?? "base");
   const [token, setToken] = useState(initial?.token ?? "");
   const [amount, setAmount] = useState(initial?.amount ?? "");
+  const [showPrefs, setShowPrefs] = useState(false);
+  const prefs = useAlloc((s) => s.preferences);
 
   return (
     <form
@@ -39,6 +43,16 @@ export function PositionForm({ onSubmit, busy, initial }: { onSubmit: (p: Positi
       <div>
         <label className="lbl" htmlFor="amount">Amount</label>
         <input id="amount" className="field tnum" placeholder="1,000,000" inputMode="decimal" value={amount} onChange={(e) => setAmount(e.target.value)} required />
+      </div>
+      <div className="rounded-xl border border-line">
+        <button type="button" className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left" onClick={() => setShowPrefs((v) => !v)} aria-expanded={showPrefs}>
+          <span className="text-[0.95rem]">
+            <span className="font-semibold">{RISK_PROFILES[prefs.risk].label}</span>
+            <span className="text-ink-2"> · move above {prefs.minOpportunityPct}% edge · at most {prefs.maxAllocationPct}% per decision · {prefs.approvalMode}</span>
+          </span>
+          <span className="shrink-0 text-sm text-ink-3">{showPrefs ? "Hide" : "Adjust"}</span>
+        </button>
+        {showPrefs && <div className="border-t border-line px-4 py-5"><PreferencesForm compact /></div>}
       </div>
       <div className="flex flex-wrap items-center gap-3 pt-1">
         <button className="btn btn-primary" type="submit" disabled={busy}>{busy ? "Working…" : "Ask Alloc"}</button>

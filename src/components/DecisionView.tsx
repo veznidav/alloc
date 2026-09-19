@@ -1,9 +1,10 @@
 "use client";
 import { useState } from "react";
 import { pct, usd } from "@/lib/format";
-import type { Decision } from "@/lib/types";
+import { RISK_PROFILES, type Decision } from "@/lib/types";
 import { PositionSummary } from "./PositionCard";
 import { ReasoningPanel } from "./ReasoningPanel";
+import { AllocationBar } from "./AllocationBar";
 
 export const ACTION_LABEL: Record<Decision["action"], string> = { HOLD: "Hold", MOVE_TO_STABLECOIN: "Move to USDC", MOVE_TO_ROBINHOOD: "Move to Robinhood Chain" };
 export const ACTION_PILL: Record<Decision["action"], string> = { HOLD: "pill-hold", MOVE_TO_STABLECOIN: "pill-stable", MOVE_TO_ROBINHOOD: "pill-robinhood" };
@@ -37,6 +38,8 @@ export function DecisionView({ decision, actions }: { decision: Decision; action
           Confidence <span className={`font-semibold ${confidenceTone}`}>{d.confidence}</span>
           <span className="mx-2">·</span>
           Evaluated {d.evaluated.length} alternatives
+          <span className="mx-2">·</span>
+          {RISK_PROFILES[d.preferences.risk]?.label ?? d.preferences.risk} profile, move above {d.preferences.minOpportunityPct}%, at most {d.preferences.maxAllocationPct}%
         </p>
       </div>
 
@@ -53,6 +56,12 @@ export function DecisionView({ decision, actions }: { decision: Decision; action
             <Row label="Estimated cost" value={`${usd(d.estimatedCostUsd)} · ${pct(d.estimatedCostPct, 2, false)}`} />
             <Row label="Expected opportunity" value={pct(d.expectedOpportunityPct, 1)} tone={d.expectedOpportunityPct ?? 0} />
             <Row label="Net after costs" value={pct((d.expectedOpportunityPct ?? 0) - (d.estimatedCostPct ?? 0), 1)} tone={(d.expectedOpportunityPct ?? 0) - (d.estimatedCostPct ?? 0)} />
+            <div className="sm:col-span-2 pt-2">
+              <AllocationBar label="After approval" parts={[
+                { symbol: d.position.symbol, valueUsd: d.position.valueUsd - d.amountUsd, tone: "current" },
+                { symbol: d.targetSymbol ?? "", valueUsd: d.amountUsd - (d.estimatedCostUsd ?? 0), tone: d.action === "MOVE_TO_STABLECOIN" ? "stable" : "robinhood" },
+              ]} />
+            </div>
           </div>
         ) : (
           <p className="mt-2 max-w-[60ch] text-[1rem] text-ink-2">Nothing. Alloc keeps watching and will tell you when that changes.</p>

@@ -42,6 +42,15 @@ export const useAlloc = create<AllocState>()(
       realDecision: null,
       setRealDecision: (d) => set({ realDecision: d }),
     }),
-    { name: "alloc-v1", partialize: (s) => ({ preferences: s.preferences, history: s.history, playgroundPosition: s.playgroundPosition, playgroundDecision: s.playgroundDecision }) },
+    {
+      name: "alloc-v1",
+      partialize: (s) => ({ preferences: s.preferences, history: s.history, playgroundPosition: s.playgroundPosition, playgroundDecision: s.playgroundDecision }),
+      version: 2,
+      migrate: (persisted) => {
+        const st = persisted as Partial<AllocState>;
+        if (st.preferences && (st.preferences.risk as string) === "moderate") st.preferences = { ...st.preferences, risk: "balanced" };
+        return st as AllocState;
+      },
+    },
   ),
 );

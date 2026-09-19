@@ -1,5 +1,5 @@
 import { encodeAbiParameters, encodeFunctionData, parseUnits, type Hex } from "viem";
-import { erc20Abi, permit2Abi, universalRouterAbi } from "./abis";
+import { erc20Abi, permit2Abi, swapRouter02Abi, universalRouterAbi } from "./abis";
 import { publicClient, RH, ZERO_ADDRESS } from "./chains";
 import { quoteV4 } from "./robinhood";
 
@@ -37,6 +37,17 @@ export async function planLeg2(owner: `0x${string}`, tokenOut: `0x${string}`, us
   if (!q) throw new Error("No on-chain pool with enough depth for this swap right now.");
   const minOut = (q.amountOut * BigInt(10000 - slippageBps)) / 10000n;
   const txs: PlannedTx[] = [];
+  if (q.protocol === "v3") {
+    const allowance = await client.readContract({ address: RH.USDG, abi: erc20Abi, functionName: "allowance", args: [owner, RH.v3SwapRouter02] });
+    if (allowance < useAmount) {
+      txs.push({ label: "Allow USDG to be swapped", chainId: 4663, to: RH.USDG, value: "0", data: encodeFunctionData({ abi: erc20Abi, functionName: "approve", args: [RH.v3SwapRouter02, useAmount] }) });
+    }
+    txs.push({
+      label: "Swap USDG for the stock token", chainId: 4663, to: RH.v3SwapRouter02, value: "0",
+      data: encodeFunctionData({ abi: swapRouter02Abi, functionName: "exactInputSingle", args: [{ tokenIn: RH.USDG, tokenOut, fee: q.fee, recipient: owner, amountIn: useAmount, amountOutMinimum: minOut, sqrtPriceLimitX96: 0n }] }),
+    });
+    return { txs, expectedOut: q.amountOut.toString(), minOut: minOut.toString() };
+  }
   const allowance = await client.readContract({ address: RH.USDG, abi: erc20Abi, functionName: "allowance", args: [owner, RH.permit2] });
   if (allowance < useAmount) {
     txs.push({ label: "Allow USDG to be swapped", chainId: 4663, to: RH.USDG, value: "0", data: encodeFunctionData({ abi: erc20Abi, functionName: "approve", args: [RH.permit2, 2n ** 256n - 1n] }) });

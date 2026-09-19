@@ -1,5 +1,5 @@
 export type SourceChain = "ethereum" | "base";
-export type RiskTolerance = "conservative" | "moderate" | "aggressive";
+export type RiskTolerance = "conservative" | "balanced" | "aggressive";
 export type ApprovalMode = "recommend" | "autonomous";
 export type Action = "HOLD" | "MOVE_TO_STABLECOIN" | "MOVE_TO_ROBINHOOD";
 export type Confidence = "low" | "medium" | "high";
@@ -11,8 +11,14 @@ export interface Preferences {
   approvalMode: ApprovalMode;
 }
 
+export const RISK_PROFILES: Record<RiskTolerance, { label: string; tagline: string; description: string }> = {
+  conservative: { label: "Conservative", tagline: "Protect first", description: "Large caps and index ETFs only. Quick to de-risk into USDC when the position weakens." },
+  balanced: { label: "Balanced", tagline: "Steady upside", description: "Large caps, ETFs and established growth names. Moves only on a clear improvement after costs." },
+  aggressive: { label: "Aggressive", tagline: "Chase asymmetry", description: "Opens the full Robinhood Chain universe, including small and mid caps with asymmetric upside. Accepts drawdowns for convexity." },
+};
+
 export const DEFAULT_PREFERENCES: Preferences = {
-  risk: "moderate",
+  risk: "balanced",
   minOpportunityPct: 5,
   maxAllocationPct: 20,
   approvalMode: "recommend",
@@ -144,3 +150,13 @@ export interface Simulation {
   route: string[];
   timeSeconds: number | null;
 }
+
+/** Events streamed while Alloc works, so the user can watch the agent gather evidence. */
+export type AllocEvent =
+  | { type: "stage"; stage: "position" | "market" | "routes" | "reasoning" | "done" }
+  | { type: "position"; position: Position }
+  | { type: "context"; context: MarketContext }
+  | { type: "route"; label: string; costPct: number | null; seconds: number | null; ok: boolean }
+  | { type: "candidate"; symbol: string; name: string; priceUsd: number | null; premiumPct: number | null; change24hPct: number | null; hopCostPct: number | null; routable: boolean }
+  | { type: "decision"; decision: Decision }
+  | { type: "error"; message: string };

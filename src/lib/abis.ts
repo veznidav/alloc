@@ -31,3 +31,17 @@ export const permit2Abi = [
 export const universalRouterAbi = [
   { type: "function", name: "execute", stateMutability: "payable", inputs: [{ type: "bytes", name: "commands" }, { type: "bytes[]", name: "inputs" }, { type: "uint256", name: "deadline" }], outputs: [] },
 ] as const;
+
+export const quoterV2Abi = [
+  { type: "function", name: "quoteExactInputSingle", stateMutability: "nonpayable",
+    inputs: [{ type: "tuple", name: "params", components: [
+      { type: "address", name: "tokenIn" }, { type: "address", name: "tokenOut" }, { type: "uint256", name: "amountIn" }, { type: "uint24", name: "fee" }, { type: "uint160", name: "sqrtPriceLimitX96" } ] }],
+    outputs: [{ type: "uint256", name: "amountOut" }, { type: "uint160", name: "sqrtPriceX96After" }, { type: "uint32", name: "initializedTicksCrossed" }, { type: "uint256", name: "gasEstimate" }] },
+] as const;
+
+export const swapRouter02Abi = [
+  { type: "function", name: "exactInputSingle", stateMutability: "payable",
+    inputs: [{ type: "tuple", name: "params", components: [
+      { type: "address", name: "tokenIn" }, { type: "address", name: "tokenOut" }, { type: "uint24", name: "fee" }, { type: "address", name: "recipient" }, { type: "uint256", name: "amountIn" }, { type: "uint256", name: "amountOutMinimum" }, { type: "uint160", name: "sqrtPriceLimitX96" } ] }],
+    outputs: [{ type: "uint256", name: "amountOut" }] },
+] as const;

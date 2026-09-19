@@ -1,16 +1,25 @@
 "use client";
 import { useAlloc } from "@/store/useAlloc";
-import type { ApprovalMode, RiskTolerance } from "@/lib/types";
+import { RISK_PROFILES, type ApprovalMode, type RiskTolerance } from "@/lib/types";
 
-export function PreferencesForm() {
+export function PreferencesForm({ compact }: { compact?: boolean } = {}) {
   const { preferences: p, setPreferences } = useAlloc();
   return (
-    <div className="space-y-8">
-      <Field label="Risk tolerance" hint="How much volatility you accept in pursuit of a better opportunity.">
-        <div className="seg" role="group">
-          {(["conservative", "moderate", "aggressive"] as RiskTolerance[]).map((r) => (
-            <button key={r} type="button" aria-pressed={p.risk === r} onClick={() => setPreferences({ risk: r })} className="capitalize">{r}</button>
-          ))}
+    <div className={compact ? "space-y-6" : "space-y-8"}>
+      <Field label="Risk profile" hint="Sets which Robinhood Chain assets Alloc may consider and how it weighs volatility.">
+        <div className="grid gap-2 sm:grid-cols-3" role="group">
+          {(Object.keys(RISK_PROFILES) as RiskTolerance[]).map((r) => {
+            const prof = RISK_PROFILES[r];
+            const on = p.risk === r;
+            return (
+              <button key={r} type="button" aria-pressed={on} onClick={() => setPreferences({ risk: r })}
+                className={`flex flex-col items-start rounded-xl border p-3 text-left transition-colors ${on ? "border-ink bg-ink text-white" : "border-line hover:border-line-strong"}`}>
+                <span className="block font-semibold">{prof.label}</span>
+                <span className={`block text-xs ${on ? "text-white/70" : "text-ink-3"}`}>{prof.tagline}</span>
+                <span className={`mt-2 block text-[0.8rem] leading-snug ${on ? "text-white/85" : "text-ink-2"}`}>{prof.description}</span>
+              </button>
+            );
+          })}
         </div>
       </Field>
       <Field label="Minimum opportunity" hint="Only move capital when the expected advantage after costs is greater than this.">

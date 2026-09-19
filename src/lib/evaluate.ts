@@ -2,9 +2,11 @@ import { parseUnits } from "viem";
 import { CHAIN_IDS, CHAIN_LABELS, RH, USDC } from "./chains";
 import { marketContext } from "./market";
 import { relayCostSummary, relayQuote } from "./relay";
-import { candidateData } from "./robinhood";
+import { candidateData, tierOf } from "./robinhood";
 import { reasonDecision } from "./serv";
-import type { Alternative, Decision, MarketContext, Momentum, Position, Preferences, Score } from "./types";
+import type { Alternative, AllocEvent, Decision, MarketContext, Momentum, Position, Preferences, Score } from "./types";
+
+export type Emit = (e: AllocEvent) => void;
 
 const fmtUsd = (n: number | null | undefined) => (n == null ? "n/a" : `$${n.toLocaleString("en-US", { maximumFractionDigits: n < 10 ? 4 : 0 })}`);
 const fmtPct = (n: number | null | undefined, d = 2) => (n == null ? "n/a" : `${n >= 0 ? "+" : ""}${n.toFixed(d)}%`);
@@ -12,12 +14,13 @@ const fmtPct = (n: number | null | undefined, d = 2) => (n == null ? "n/a" : `${
 function riskGuidance(p: Preferences) {
   switch (p.risk) {
     case "conservative": return "Conservative: prefer capital preservation. Move to a stablecoin readily when the current asset shows weakness, thin liquidity or a sharp drawdown; require very strong, well-supported evidence and high confidence before moving into a Robinhood Chain asset; when in doubt, HOLD or de-risk.";
-    case "aggressive": return "Aggressive: tolerate volatility in pursuit of upside. Favor moving into a clearly stronger opportunity when it clears the threshold after costs; use stablecoins only when the current asset is deteriorating badly.";
-    default: return "Moderate: balance upside against drawdown risk. Move only when the improvement is clear after costs, and size positions cautiously.";
+    case "aggressive": return "Aggressive: the user wants asymmetric upside and accepts drawdowns. Prefer smaller, higher-volatility names with strong momentum over mega caps when the modelled edge is comparable; volatility is convexity here, not a flaw. Use stablecoins only when the current asset is collapsing and no growth alternative is live.";
+    default: return "Balanced: balance upside against drawdown risk. Move only when the improvement is clear after costs, and size positions cautiously.";
   }
 }
 
-const LAMBDA: Record<Preferences["risk"], number> = { conservative: 0.4, moderate: 0.25, aggressive: 0.12 };
+/** Volatility penalty per profile. Aggressive treats volatility as convexity: a small bonus rather than a penalty. */
+const LAMBDA: Record<Preferences["risk"], number> = { conservative: 0.4, balanced: 0.25, aggressive: -0.05 };
 const clamp = (n: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, n));
 
 /**
@@ -40,17 +43,22 @@ function proposedAmountUsd(position: Position, prefs: Preferences) {
 }
 
 /** Gather every alternative with live route costs for the proposed size. */
-export async function gatherAlternatives(position: Position, prefs: Preferences): Promise<{ alternatives: Alternative[]; context: MarketContext }> {
+export async function gatherAlternatives(position: Position, prefs: Preferences, emit: Emit = () => {}): Promise<{ alternatives: Alternative[]; context: MarketContext }> {
   const amountUsd = proposedAmountUsd(position, prefs);
   const amountTokens = Number(position.amount) * (prefs.maxAllocationPct / 100);
   const rawAmount = parseUnits(amountTokens.toFixed(Math.min(position.decimals, 8)), position.decimals);
   const originChainId = CHAIN_IDS[position.chain];
 
+  emit({ type: "stage", stage: "market" });
   const [context, stableQuote, usdgQuote, candidates] = await Promise.all([
-    marketContext(),
-    position.isStablecoin ? Promise.resolve(null) : relayQuote({ originChainId, destinationChainId: originChainId, originCurrency: position.token, destinationCurrency: USDC[position.chain], amount: rawAmount.toString() }).catch((e: Error) => ({ error: e.message })),
-    relayQuote({ originChainId, destinationChainId: 4663, originCurrency: position.token, destinationCurrency: RH.USDG, amount: rawAmount.toString() }).catch((e: Error) => ({ error: e.message })),
-    candidateData(amountUsd),
+    marketContext().then((c) => { emit({ type: "context", context: c }); return c; }),
+    position.isStablecoin ? Promise.resolve(null) : relayQuote({ originChainId, destinationChainId: originChainId, originCurrency: position.token, destinationCurrency: USDC[position.chain], amount: rawAmount.toString() })
+      .then((q) => { const c = relayCostSummary(q); emit({ type: "route", label: `${position.symbol} → USDC on ${CHAIN_LABELS[position.chain]}`, costPct: c.costPct, seconds: c.seconds, ok: true }); return q; })
+      .catch((e: Error) => { emit({ type: "route", label: `${position.symbol} → USDC on ${CHAIN_LABELS[position.chain]}`, costPct: null, seconds: null, ok: false }); return { error: e.message }; }),
+    relayQuote({ originChainId, destinationChainId: 4663, originCurrency: position.token, destinationCurrency: RH.USDG, amount: rawAmount.toString() })
+      .then((q) => { const c = relayCostSummary(q); emit({ type: "route", label: `${position.symbol} → USDG on Robinhood Chain`, costPct: c.costPct, seconds: c.seconds, ok: true }); return q; })
+      .catch((e: Error) => { emit({ type: "route", label: `${position.symbol} → USDG on Robinhood Chain`, costPct: null, seconds: null, ok: false }); return { error: e.message }; }),
+    candidateData(amountUsd, prefs.risk, (c) => emit({ type: "candidate", symbol: c.asset.symbol, name: c.asset.name, priceUsd: c.priceUsd, premiumPct: c.premiumPct, change24hPct: c.market?.priceChange.h24 ?? null, hopCostPct: c.hopCostPct, routable: c.hopCostPct != null && c.hopCostPct <= 10 })),
   ]);
 
   const alternatives: Alternative[] = [];
@@ -116,11 +124,13 @@ function describeAlternative(a: Alternative) {
     return `- USDC (stablecoin, same chain). Risk-adjusted score 0.0%. Modelled net advantage over current asset after costs: ${a.score?.advantagePct == null ? "n/a" : fmtPct(a.score.advantagePct, 1)}. Move cost for the proposed amount: ${a.routeCostPct == null ? "no live route" : fmtPct(a.routeCostPct, 2).replace("+", "")}.`;
   }
   const m = a.market;
-  return `- ${a.symbol} (${a.name}, tokenized stock on Robinhood Chain). On-chain price ${fmtUsd(a.priceUsd)}; Chainlink reference ${fmtUsd(a.referencePriceUsd)}; on-chain premium vs reference ${fmtPct(a.premiumPct)}. Price change 1h ${fmtPct(m?.priceChange.h1)}, 6h ${fmtPct(m?.priceChange.h6)}, 24h ${fmtPct(m?.priceChange.h24)}. Underlying stock: ${describeMomentum(m?.momentum).replace("Longer-term performance: ", "")}. 24h volume ${fmtUsd(m?.volume24hUsd)}; liquidity ${fmtUsd(m?.liquidityUsd)}; 24h trades ${m?.txns24h ? `${m.txns24h.buys}/${m.txns24h.sells}` : "n/a"}. All-in move cost for the proposed amount: ${a.routeCostPct == null ? "no live route (do not choose)" : fmtPct(a.routeCostPct, 2).replace("+", "")}. Alloc model: expected 30d return ${fmtPct(a.score?.expectedReturn30dPct, 1)}, risk-adjusted ${fmtPct(a.score?.riskAdjustedPct, 1)}, modelled net advantage over current asset after costs ${a.score?.advantagePct == null ? "n/a" : fmtPct(a.score.advantagePct, 1)}.`;
+  const tier = tierOf(a.symbol) === "core" ? "index ETF / mega cap" : tierOf(a.symbol) === "large" ? "large cap" : "small/mid cap";
+  return `- ${a.symbol} (${a.name}, ${tier}, tokenized on Robinhood Chain). On-chain price ${fmtUsd(a.priceUsd)}; Chainlink reference ${fmtUsd(a.referencePriceUsd)}; on-chain premium vs reference ${fmtPct(a.premiumPct)}. Price change 1h ${fmtPct(m?.priceChange.h1)}, 6h ${fmtPct(m?.priceChange.h6)}, 24h ${fmtPct(m?.priceChange.h24)}. Underlying stock: ${describeMomentum(m?.momentum).replace("Longer-term performance: ", "")}. 24h volume ${fmtUsd(m?.volume24hUsd)}; liquidity ${fmtUsd(m?.liquidityUsd)}; 24h trades ${m?.txns24h ? `${m.txns24h.buys}/${m.txns24h.sells}` : "n/a"}. All-in move cost for the proposed amount: ${a.routeCostPct == null ? "no live route (do not choose)" : fmtPct(a.routeCostPct, 2).replace("+", "")}. Alloc model: expected 30d return ${fmtPct(a.score?.expectedReturn30dPct, 1)}, risk-adjusted ${fmtPct(a.score?.riskAdjustedPct, 1)}, modelled net advantage over current asset after costs ${a.score?.advantagePct == null ? "n/a" : fmtPct(a.score.advantagePct, 1)}.`;
 }
 
-export async function evaluatePosition(position: Position, prefs: Preferences, mode: "playground" | "real"): Promise<Decision> {
-  const { alternatives, context } = await gatherAlternatives(position, prefs);
+export async function evaluatePosition(position: Position, prefs: Preferences, mode: "playground" | "real", emit: Emit = () => {}): Promise<Decision> {
+  const { alternatives, context } = await gatherAlternatives(position, prefs, emit);
+  emit({ type: "stage", stage: "reasoning" });
   const proposedUsd = proposedAmountUsd(position, prefs);
 
   const system = `You are Alloc, a capital allocation agent. You watch one crypto position on Ethereum or Base and decide where that capital should be right now: stay (HOLD), move partly into a stablecoin (MOVE_TO_STABLECOIN), or move partly into a tokenized stock on Robinhood Chain (MOVE_TO_ROBINHOOD).

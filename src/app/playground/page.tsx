@@ -1,11 +1,11 @@
 "use client";
 import { useState } from "react";
-import Link from "next/link";
 import { DecisionView } from "@/components/DecisionView";
 import { PositionForm } from "@/components/PositionForm";
 import { Progress } from "@/components/Progress";
 import { WatchToggle } from "@/components/WatchToggle";
 import { SimulationPanel } from "@/components/SimulationPanel";
+import { ComparePanel } from "@/components/ComparePanel";
 import { PositionSummary } from "@/components/PositionCard";
 import { useEvaluate } from "@/components/useEvaluate";
 import { useAlloc } from "@/store/useAlloc";
@@ -14,21 +14,19 @@ import type { PositionInput } from "@/lib/types";
 
 export default function PlaygroundPage() {
   const { preferences, playgroundPosition, setPlaygroundPosition, playgroundDecision, setPlaygroundDecision, addDecision, updateDecision } = useAlloc();
-  const { stage, error, resolve, evaluate, reset } = useEvaluate("playground");
-  const [view, setView] = useState<"form" | "decision" | "simulate">(() => (typeof window !== "undefined" && useAlloc.getState().playgroundDecision ? "decision" : "form"));
+  const { stage, error, feed, livePosition, evaluate, reset } = useEvaluate("playground");
+  const [view, setView] = useState<"form" | "decision" | "simulate" | "compare">(() => (typeof window !== "undefined" && useAlloc.getState().playgroundDecision ? "decision" : "form"));
   const hydrated = useHydrated();
 
-  const busy = stage === "position" || stage === "market" || stage === "reasoning";
+  const busy = stage === "position" || stage === "market" || stage === "routes" || stage === "reasoning";
 
   async function run(input: PositionInput) {
     setPlaygroundDecision(null);
-    const position = await resolve(input);
-    if (!position) return;
-    setPlaygroundPosition(position);
-    const decision = await evaluate(input, preferences);
-    if (!decision) return;
-    setPlaygroundDecision(decision);
-    addDecision(decision);
+    const result = await evaluate(input, preferences);
+    if (!result) return;
+    setPlaygroundPosition(result.position);
+    setPlaygroundDecision(result.decision);
+    addDecision(result.decision);
     setView("decision");
   }
 
@@ -54,17 +52,19 @@ export default function PlaygroundPage() {
       {view === "form" && (
         <div className="card p-6 sm:p-8">
           <PositionForm onSubmit={run} busy={busy} initial={playgroundPosition ? { chain: playgroundPosition.chain, token: playgroundPosition.token, amount: playgroundPosition.amount } : null} />
-          <p className="mt-5 text-sm text-ink-3">
-            Alloc uses your <Link className="underline" href="/settings">preferences</Link>: {preferences.risk} risk, move only above {preferences.minOpportunityPct}% advantage, never more than {preferences.maxAllocationPct}% per decision.
-          </p>
         </div>
       )}
 
-      {busy && playgroundPosition && view === "form" && (
-        <div className="card p-6"><PositionSummary position={playgroundPosition} /></div>
+      {busy && livePosition && (
+        <div className="card p-6 reveal"><PositionSummary position={livePosition} /></div>
       )}
-      {busy && <Progress stage={stage} />}
-      {error && <div className="card border-danger/30 bg-danger-soft p-5 text-[0.95rem] text-danger">{error}</div>}
+      {busy && <Progress stage={stage} feed={feed} />}
+      {error && (
+        <div className="card border-danger/30 bg-danger-soft p-5 text-[0.95rem] text-danger">
+          <p>{error}</p>
+          <button className="btn btn-secondary btn-sm mt-3" onClick={() => reset()}>Try again</button>
+        </div>
+      )}
 
       {view === "decision" && playgroundDecision && !busy && (
         <DecisionView
@@ -72,10 +72,22 @@ export default function PlaygroundPage() {
           actions={
             <>
               {playgroundDecision.action !== "HOLD" && <button className={`btn ${playgroundDecision.action === "MOVE_TO_ROBINHOOD" ? "btn-robinhood" : "btn-stable"}`} onClick={() => { setView("simulate"); updateDecision(playgroundDecision.id, { status: "simulated" }); }}>Simulate</button>}
+              <button className="btn btn-secondary" onClick={() => setView("compare")}>Compare profiles</button>
               <button className="btn btn-secondary" onClick={reevaluate}>Re-evaluate</button>
             </>
           }
         />
+      )}
+
+      {view === "compare" && playgroundDecision && (
+        <>
+          <ComparePanel
+            position={{ chain: playgroundDecision.position.chain, token: playgroundDecision.position.token, amount: playgroundDecision.position.amount }}
+            preferences={preferences}
+            onPick={(d) => { setPlaygroundDecision(d); addDecision(d); setView("decision"); }}
+          />
+          <button className="btn btn-secondary" onClick={() => setView("decision")}>Back to decision</button>
+        </>
       )}
 
       {view === "decision" && playgroundDecision && !busy && (
