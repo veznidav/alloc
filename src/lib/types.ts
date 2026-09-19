@@ -30,7 +30,7 @@ export interface Momentum {
   change90dPct: number | null;
   volatility30dPct: number | null; // annualised, from daily closes
   fromHigh52wPct: number | null;
-  source: "coingecko" | "yahoo";
+  source: "coingecko" | "yahoo" | "geckoterminal";
 }
 
 export interface MarketSnapshot {

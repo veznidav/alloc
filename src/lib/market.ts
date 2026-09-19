@@ -49,7 +49,8 @@ interface CgSimple { [id: string]: { usd: number; usd_24h_change?: number } }
 
 export async function nativeEthMarket(): Promise<MarketSnapshot> {
   return cached("cg:eth", 60_000, async () => {
-    const d = await fetchJson<CgSimple>("https://api.coingecko.com/api/v3/simple/price?ids=ethereum&vs_currencies=usd&include_24hr_change=true&include_24hr_vol=true&include_market_cap=true");
+    const d = await fetchJson<CgSimple>("https://api.coingecko.com/api/v3/simple/price?ids=ethereum&vs_currencies=usd&include_24hr_change=true&include_24hr_vol=true&include_market_cap=true", { timeoutMs: 6000 }).catch(() => null);
+    if (!d) return ethFromDex();
     const e = d.ethereum as { usd: number; usd_24h_change?: number; usd_24h_vol?: number; usd_market_cap?: number };
     return {
       priceUsd: e.usd,
@@ -66,12 +67,25 @@ export async function nativeEthMarket(): Promise<MarketSnapshot> {
   });
 }
 
+/** ETH price from the deepest WETH pool on Base when CoinGecko is unavailable. */
+async function ethFromDex(): Promise<MarketSnapshot> {
+  const dm = await dexMarket("base", "0x4200000000000000000000000000000000000006");
+  if (!dm) throw new Error("ETH price unavailable right now.");
+  return { ...dm.snapshot, liquidityUsd: null, marketCapUsd: null, fdvUsd: null, txns24h: null };
+}
+
 export async function marketContext(): Promise<MarketContext> {
-  return cached("cg:context", 120_000, async () => {
+  return cached("cg:context", 300_000, async () => {
     const [simple, global] = await Promise.all([
-      fetchJson<CgSimple>("https://api.coingecko.com/api/v3/simple/price?ids=ethereum,bitcoin&vs_currencies=usd&include_24hr_change=true").catch(() => ({} as CgSimple)),
-      fetchJson<{ data?: { market_cap_change_percentage_24h_usd?: number } }>("https://api.coingecko.com/api/v3/global").catch(() => ({ data: undefined })),
+      fetchJson<CgSimple>("https://api.coingecko.com/api/v3/simple/price?ids=ethereum,bitcoin&vs_currencies=usd&include_24hr_change=true", { timeoutMs: 6000 }).catch(() => ({} as CgSimple)),
+      fetchJson<{ data?: { market_cap_change_percentage_24h_usd?: number } }>("https://api.coingecko.com/api/v3/global", { timeoutMs: 6000 }).catch(() => ({ data: undefined })),
     ]);
+    if (!simple.ethereum) {
+      // Fall back to on-chain prices so the context is never empty.
+      const [eth, btc] = await Promise.all([dexMarket("base", "0x4200000000000000000000000000000000000006").catch(() => null), dexMarket("base", "0xcbB7C0000aB88B473b1f5aFd9ef808440eed33Bf").catch(() => null)]);
+      simple.ethereum = eth ? { usd: eth.snapshot.priceUsd, usd_24h_change: eth.snapshot.priceChange.h24 ?? undefined } : undefined as unknown as CgSimple[string];
+      simple.bitcoin = btc ? { usd: btc.snapshot.priceUsd, usd_24h_change: btc.snapshot.priceChange.h24 ?? undefined } : undefined as unknown as CgSimple[string];
+    }
     return {
       ethUsd: simple.ethereum?.usd ?? null,
       ethChange24hPct: simple.ethereum?.usd_24h_change ?? null,
@@ -94,27 +108,48 @@ function stats(closes: number[]): Pick<Momentum, "change7dPct" | "change30dPct" 
   return { change7dPct: chg(5), change30dPct: chg(21), change90dPct: chg(63), volatility30dPct: rets.length > 5 ? sd * Math.sqrt(365) * 100 : null };
 }
 
-/** Weekly/monthly momentum and volatility for an ERC-20 from CoinGecko's free contract endpoint (best effort). */
-export async function tokenMomentum(chain: SourceChain, address: string): Promise<Momentum | null> {
-  return cached(`cg:mom:${chain}:${address.toLowerCase()}`, 15 * 60_000, async () => {
+const GT_NETWORK: Record<SourceChain, string> = { ethereum: "eth", base: "base" };
+
+/** Daily closes for a pool from GeckoTerminal (free, fast, no key). */
+async function geckoPoolCloses(network: string, pool: string): Promise<number[] | null> {
+  try {
+    const j = await fetchJson<{ data: { attributes: { ohlcv_list: [number, number, number, number, number, number][] } } }>(
+      `https://api.geckoterminal.com/api/v2/networks/${network}/pools/${pool}/ohlcv/day?aggregate=1&limit=100&currency=usd`, { timeoutMs: 8000 });
+    const closes = j.data.attributes.ohlcv_list.map((c) => c[4]).reverse();
+    return closes.length >= 8 ? closes : null;
+  } catch { return null; }
+}
+
+function fromCloses(closes: number[], source: Momentum["source"]): Momentum {
+  const high = Math.max(...closes);
+  return { ...stats(closes), fromHigh52wPct: high ? ((closes.at(-1)! - high) / high) * 100 : null, source };
+}
+
+/** Weekly/monthly momentum and volatility for an ERC-20: GeckoTerminal pool history first, CoinGecko as fallback. */
+export async function tokenMomentum(chain: SourceChain, address: string, pairAddress?: string | null): Promise<Momentum | null> {
+  return cached(`mom:${chain}:${address.toLowerCase()}`, 15 * 60_000, async () => {
+    if (pairAddress) {
+      const closes = await geckoPoolCloses(GT_NETWORK[chain], pairAddress);
+      if (closes) return fromCloses(closes, "geckoterminal");
+    }
     try {
       const platform = chain === "base" ? "base" : "ethereum";
-      const j = await fetchJson<{ prices: [number, number][] }>(`https://api.coingecko.com/api/v3/coins/${platform}/contract/${address}/market_chart?vs_currency=usd&days=90&interval=daily`, { timeoutMs: 8000 });
-      const closes = j.prices.map((p) => p[1]);
-      const high = Math.max(...closes);
-      return { ...stats(closes), fromHigh52wPct: high ? ((closes.at(-1)! - high) / high) * 100 : null, source: "coingecko" as const };
+      const j = await fetchJson<{ prices: [number, number][] }>(`https://api.coingecko.com/api/v3/coins/${platform}/contract/${address}/market_chart?vs_currency=usd&days=90&interval=daily`, { timeoutMs: 6000 });
+      return fromCloses(j.prices.map((p) => p[1]), "coingecko");
     } catch { return null; }
   });
 }
 
 export async function ethMomentum(): Promise<Momentum | null> {
-  return cached("cg:mom:eth", 15 * 60_000, async () => {
+  return cached("mom:eth", 15 * 60_000, async () => {
     try {
-      const j = await fetchJson<{ prices: [number, number][] }>("https://api.coingecko.com/api/v3/coins/ethereum/market_chart?vs_currency=usd&days=90&interval=daily", { timeoutMs: 8000 });
-      const closes = j.prices.map((p) => p[1]);
-      const high = Math.max(...closes);
-      return { ...stats(closes), fromHigh52wPct: high ? ((closes.at(-1)! - high) / high) * 100 : null, source: "coingecko" as const };
-    } catch { return null; }
+      const j = await fetchJson<{ prices: [number, number][] }>("https://api.coingecko.com/api/v3/coins/ethereum/market_chart?vs_currency=usd&days=90&interval=daily", { timeoutMs: 6000 });
+      return fromCloses(j.prices.map((p) => p[1]), "coingecko");
+    } catch {
+      const dm = await dexMarket("base", "0x4200000000000000000000000000000000000006").catch(() => null);
+      const closes = dm?.snapshot.pairAddress ? await geckoPoolCloses("base", dm.snapshot.pairAddress) : null;
+      return closes ? fromCloses(closes, "geckoterminal") : null;
+    }
   });
 }
 

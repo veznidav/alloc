@@ -30,9 +30,10 @@ const clamp = (n: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, n
  */
 export function scoreAsset(mo: Momentum | null | undefined, risk: Preferences["risk"], opts: { stable?: boolean; h24?: number | null } = {}): Score {
   if (opts.stable) return { expectedReturn30dPct: 0, monthlyVolatilityPct: 0, riskAdjustedPct: 0, advantagePct: null };
-  const c30 = mo?.change30dPct ?? (opts.h24 != null ? opts.h24 * 5 : 0);
-  const c90 = mo?.change90dPct ?? c30 * 2;
-  const c7 = mo?.change7dPct ?? (opts.h24 ?? 0) * 2;
+  // Without history, stay neutral: only the last day is known.
+  const c30 = mo?.change30dPct ?? 0;
+  const c90 = mo?.change90dPct ?? 0;
+  const c7 = mo?.change7dPct ?? (opts.h24 ?? 0);
   const mu = clamp(0.5 * c30 + 0.25 * (c90 / 3) + 0.25 * (c7 * 2), -30, 30);
   const vol = (mo?.volatility30dPct ?? 80) / Math.sqrt(12);
   return { expectedReturn30dPct: mu, monthlyVolatilityPct: vol, riskAdjustedPct: mu - LAMBDA[risk] * vol, advantagePct: null };

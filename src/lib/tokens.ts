@@ -35,8 +35,9 @@ export async function resolvePosition(input: PositionInput): Promise<Position> {
     const [m, mom] = await Promise.all([nativeEthMarket(), ethMomentum()]);
     market = { ...m, momentum: mom };
   } else {
-    const [dm, mom] = await Promise.all([dexMarket(input.chain, meta.address), tokenMomentum(input.chain, meta.address)]);
+    const dm = await dexMarket(input.chain, meta.address);
     if (!dm) throw new Error(`No market data found for ${meta.symbol} on this chain. Alloc needs a token with an active on-chain market.`);
+    const mom = await tokenMomentum(input.chain, meta.address, dm.snapshot.pairAddress);
     market = { ...dm.snapshot, momentum: mom };
     logo = dm.logo;
   }
