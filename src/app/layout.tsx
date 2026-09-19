@@ -7,8 +7,9 @@ import { Nav } from "@/components/Nav";
 const schibsted = Schibsted_Grotesk({ subsets: ["latin"], variable: "--font-schibsted", display: "swap" });
 
 export const metadata: Metadata = {
-  title: "Alloc",
+  title: { default: "Alloc", template: "%s · Alloc" },
   description: "Alloc watches your crypto position and decides whether to hold, move to a stablecoin, or move into an opportunity on Robinhood Chain.",
+  openGraph: { title: "Alloc", description: "Your capital. Three choices. One intelligent allocator.", type: "website" },
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

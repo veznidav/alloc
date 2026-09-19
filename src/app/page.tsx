@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { Pulse } from "@/components/Pulse";
 
 export default function Home() {
   return (
@@ -16,6 +17,8 @@ export default function Home() {
           <Link href="/market" className="btn btn-secondary">See the market</Link>
         </div>
       </section>
+
+      <Pulse />
 
       <section className="grid gap-4 sm:grid-cols-3">
         {[

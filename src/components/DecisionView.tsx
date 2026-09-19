@@ -12,6 +12,7 @@ const DOT: Record<Decision["action"], string> = { HOLD: "active", MOVE_TO_STABLE
 
 export function DecisionView({ decision, actions }: { decision: Decision; actions?: React.ReactNode }) {
   const [showWhy, setShowWhy] = useState(false);
+  const [copied, setCopied] = useState(false);
   const d = decision;
   const moving = d.action !== "HOLD";
   const confidenceTone = d.confidence === "high" ? "text-robinhood" : d.confidence === "medium" ? "text-ink" : "text-warn";
@@ -77,6 +78,7 @@ export function DecisionView({ decision, actions }: { decision: Decision; action
         <div className="mt-6 flex flex-wrap gap-3">
           <button className="btn btn-secondary" onClick={() => setShowWhy((v) => !v)} aria-expanded={showWhy}>{showWhy ? "Hide reasoning" : "View reasoning"}</button>
           {actions}
+          <button className="btn btn-secondary" onClick={async () => { try { await navigator.clipboard.writeText(summaryText(d)); setCopied(true); setTimeout(() => setCopied(false), 1800); } catch { /* clipboard blocked */ } }}>{copied ? "Copied" : "Copy summary"}</button>
         </div>
       </div>
 
@@ -93,4 +95,22 @@ function Row({ label, value, tone }: { label: string; value: string; tone?: numb
       <span className={`block font-semibold tnum ${color}`}>{value}</span>
     </div>
   );
+}
+
+/** Plain-text version of a decision, for pasting into a chat or a note. */
+function summaryText(d: Decision) {
+  const lines = [
+    `Alloc · ${new Date(d.createdAt).toLocaleString()} · ${d.mode === "real" ? "Real" : "Playground"}`,
+    `Position: ${Number(d.position.amount).toLocaleString()} ${d.position.symbol} on ${d.position.chain === "base" ? "Base" : "Ethereum"} (${usd(d.position.valueUsd)})`,
+    `Decision: ${d.headline}${d.action !== "HOLD" ? ` — ${usd(d.amountUsd)} (${d.allocationPct}%) → ${d.targetSymbol}, cost ${pct(d.estimatedCostPct, 2, false)}, expected ${pct(d.expectedOpportunityPct, 1)}` : ""}`,
+    `Confidence: ${d.confidence} · ${RISK_PROFILES[d.preferences.risk]?.label ?? d.preferences.risk} profile`,
+    "",
+    d.summary,
+    "",
+    ...d.reasoning.map((r) => `• ${r}`),
+    ...(d.warnings.length ? ["", ...d.warnings.map((w) => `! ${w}`)] : []),
+    "",
+    "Reasoned with SERV · alloc-two.vercel.app",
+  ];
+  return lines.join("\n");
 }

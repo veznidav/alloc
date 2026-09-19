@@ -151,9 +151,9 @@ export function WalletPanel({ onSelect, busy }: { onSelect: (p: PositionInput) =
             </div>
             <PreferencesBlock />
           </div>
-          <div className="mt-6 flex flex-wrap items-center gap-3">
-            <button className="btn btn-primary" disabled={busy || !amount || Number(amount.replace(/,/g, "")) <= 0} onClick={() => onSelect({ chain: picked.chain, token: picked.token, amount: amount.replace(/,/g, "") })}>{busy ? "Working…" : "Ask Alloc"}</button>
-            <span className="text-sm text-ink-3">Alloc will evaluate, explain, and wait for your approval before anything moves.</span>
+          <div className="mt-6 flex flex-wrap items-center gap-4">
+            <button className="btn btn-primary btn-lg" disabled={busy || !amount || Number(amount.replace(/,/g, "")) <= 0} onClick={() => onSelect({ chain: picked.chain, token: picked.token, amount: amount.replace(/,/g, "") })}>{busy ? "Working…" : "Ask Alloc"}</button>
+            <span className="max-w-[36ch] text-sm leading-snug text-ink-3">Alloc will evaluate, explain, and wait for your approval before anything moves.</span>
           </div>
         </Step>
       )}

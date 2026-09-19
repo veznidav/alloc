@@ -42,9 +42,9 @@ export function PositionForm({ onSubmit, busy, initial }: { onSubmit: (p: Positi
         <input id="amount" className="field tnum" placeholder="1,000,000" inputMode="decimal" value={amount} onChange={(e) => setAmount(e.target.value)} required />
       </div>
       <PreferencesBlock />
-      <div className="flex flex-wrap items-center gap-3 pt-1">
-        <button className="btn btn-primary" type="submit" disabled={busy}>{busy ? "Working…" : "Ask Alloc"}</button>
-        <span className="text-sm text-ink-3">Real market data, nothing is traded.</span>
+      <div className="flex flex-wrap items-center gap-4 pt-2">
+        <button className="btn btn-primary btn-lg" type="submit" disabled={busy}>{busy ? "Working…" : "Ask Alloc"}</button>
+        <span className="max-w-[32ch] text-sm leading-snug text-ink-3">Alloc reads the market, prices every route, and decides. Real data, nothing is traded.</span>
       </div>
       <div className="flex flex-wrap gap-2 pt-1">
         {EXAMPLES.map((ex) => (
