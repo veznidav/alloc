@@ -76,11 +76,14 @@ export default function RealPage() {
       )}
 
       {view === "execute" && realDecision && (
-        <ExecutionPanel
-          decision={realDecision}
-          onReject={() => { updateDecision(realDecision.id, { status: "rejected" }); setView("decision"); }}
-          onDone={(txs) => updateDecision(realDecision.id, { status: "executed", executionTxs: txs })}
-        />
+        <>
+          <ExecutionPanel
+            decision={realDecision}
+            onReject={() => { updateDecision(realDecision.id, { status: "rejected" }); setView("decision"); }}
+            onDone={(txs) => updateDecision(realDecision.id, { status: "executed", executionTxs: txs })}
+          />
+          <div className="px-1"><WatchToggle onTick={() => realPosition && run({ chain: realPosition.chain, token: realPosition.token, amount: realPosition.amount })} /></div>
+        </>
       )}
 
       {view !== "pick" && <p className="text-sm text-ink-3">Approval mode is <span className="font-semibold text-ink-2">{preferences.approvalMode}</span>. Change it in <Link className="underline" href="/settings">preferences</Link>.</p>}

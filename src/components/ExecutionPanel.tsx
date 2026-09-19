@@ -23,7 +23,7 @@ export function ExecutionPanel({ decision, onDone, onReject }: { decision: Decis
   const [plan, setPlan] = useState<Plan | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [phase, setPhase] = useState<Phase>("preview");
-  const [log, setLog] = useState<string[]>([]);
+  const [log, setLog] = useState<{ t: string; msg: string }[]>([]);
   const [txs, setTxs] = useState<{ chainId: number; hash: string; label: string }[]>([]);
   const auto = decision.preferences.approvalMode === "autonomous";
   const started = useRef(false);
@@ -35,7 +35,7 @@ export function ExecutionPanel({ decision, onDone, onReject }: { decision: Decis
     return () => { live = false; };
   }, [decision, address]);
 
-  const say = (m: string) => setLog((l) => [...l, m]);
+  const say = (m: string) => setLog((l) => [...l, { t: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" }), msg: m }]);
 
   /** Always read the wallet's live chain: React state can be stale mid-flow, and a wrong chain fails the transaction. */
   const ensureChain = useCallback(async (id: number) => {
@@ -152,11 +152,53 @@ export function ExecutionPanel({ decision, onDone, onReject }: { decision: Decis
       {(phase === "signing" || phase === "bridging" || phase === "leg2") && (
         <div className="mt-5"><Working label={phase === "bridging" ? "Funds are moving to Robinhood Chain" : phase === "leg2" ? "Buying on Robinhood Chain" : "Waiting for your wallet"} detail={phase === "bridging" ? "Relay is delivering USDG; this usually takes under a minute" : phase === "leg2" ? "Sign the remaining steps in your wallet" : "Confirm the transaction in your wallet"} tone="robinhood" /></div>
       )}
-      {log.length > 0 && (
-        <ol className="mt-5 space-y-1 text-sm text-ink-2">{log.map((l, i) => <li key={i} className={i === log.length - 1 && phase !== "done" && phase !== "failed" ? "thinking" : ""}>{l}</li>)}</ol>
+      {phase === "done" && sim && (
+        <div className="mt-6 rounded-2xl border border-robinhood/40 bg-robinhood-soft p-5 sm:p-6">
+          <div className="flex items-start gap-3">
+            <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-robinhood text-white">✓</span>
+            <div>
+              <p className="text-xl font-bold">Move complete</p>
+              <p className="mt-1 text-ink-2">
+                {num(sim.amountTokens)} {decision.position.symbol} became about {num(sim.receivedTokens)} {sim.receivedSymbol} on {decision.targetChain === "robinhood" ? "Robinhood Chain" : (decision.position.chain === "base" ? "Base" : "Ethereum")}.
+                {" "}All {txs.length} transaction{txs.length === 1 ? "" : "s"} confirmed. This decision is recorded in your history.
+              </p>
+            </div>
+          </div>
+        </div>
       )}
+
       {txs.length > 0 && (
-        <ul className="mt-3 flex flex-wrap gap-3 text-sm">{txs.map((t) => <li key={t.hash}><a className="underline" href={explorerTx(t.chainId, t.hash)} target="_blank" rel="noreferrer">{t.label}</a></li>)}</ul>
+        <section className="mt-6">
+          <h3 className="text-sm font-semibold text-ink-3">Transactions</h3>
+          <ul className="mt-2 divide-y divide-line rounded-xl border border-line">
+            {txs.map((t, i) => (
+              <li key={t.hash} className="flex flex-wrap items-center justify-between gap-3 px-4 py-2.5 text-sm">
+                <span className="flex items-center gap-3">
+                  <span className="grid h-6 w-6 place-items-center rounded-full bg-robinhood text-xs font-bold text-white">{i + 1}</span>
+                  <span className="font-semibold">{t.label}</span>
+                  <span className="rounded-full bg-surface-2 px-2 py-0.5 text-xs text-ink-2">{t.chainId === 4663 ? "Robinhood Chain" : t.chainId === 8453 ? "Base" : "Ethereum"}</span>
+                  <span className="font-mono text-xs text-ink-3">{t.hash.slice(0, 10)}…{t.hash.slice(-6)}</span>
+                </span>
+                <a className="btn btn-secondary btn-sm" href={explorerTx(t.chainId, t.hash)} target="_blank" rel="noreferrer">View on explorer ↗</a>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
+      {log.length > 0 && (
+        <section className="mt-6">
+          <h3 className="text-sm font-semibold text-ink-3">Wallet activity log</h3>
+          <p className="mt-0.5 text-xs text-ink-3">Every step Alloc asked your wallet to do, in order.</p>
+          <ol className="mt-2 max-h-64 space-y-1 overflow-y-auto rounded-xl border border-line bg-surface-2 p-3 font-mono text-[0.8rem] text-ink-2">
+            {log.map((l, i) => (
+              <li key={i} className={`flex gap-3 ${i === log.length - 1 && phase !== "done" && phase !== "failed" ? "thinking" : ""}`}>
+                <span className="shrink-0 text-ink-3">{l.t}</span>
+                <span>{l.msg}</span>
+              </li>
+            ))}
+          </ol>
+        </section>
       )}
       {error && <p className="mt-4 text-[0.95rem] text-danger">{error}</p>}
 
@@ -169,7 +211,7 @@ export function ExecutionPanel({ decision, onDone, onReject }: { decision: Decis
           </>
         )}
         {phase === "failed" && <button className="btn btn-secondary" onClick={onReject}>Back</button>}
-        {phase === "done" && <p className="text-ink-2">Alloc keeps watching the remaining position.</p>}
+        {phase === "done" && <p className="text-ink-2">Alloc keeps watching the remaining position. Turn on &ldquo;Keep watching&rdquo; below to re-check it automatically.</p>}
       </div>
     </section>
   );
