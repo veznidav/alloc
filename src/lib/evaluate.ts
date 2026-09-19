@@ -265,8 +265,8 @@ IMPORTANT: HOLD is not permitted for the ${prefs.risk} profile while a live alte
   d.why_not = d.why_not.map((w) => {
     const cleaned = w.option.replace(/MOVE_TO_ROBINHOOD|MOVE_TO_STABLECOIN|HOLD|MOVE TO|ROBINHOOD CHAIN|STABLECOIN/gi, "").replace(/[_:()→-]+/g, " ").trim();
     const hit = cleaned.split(/\s+/).find((t) => known.has(t.toUpperCase()));
-    return { option: hit ?? cleaned ?? w.option, reason: w.reason };
-  });
+    return { option: hit ?? (cleaned || w.option), reason: w.reason };
+  }).filter((w) => w.option.trim().length > 0);
 
   // Normalise against the rules so the UI never shows an impossible action.
   let action = d.action;
