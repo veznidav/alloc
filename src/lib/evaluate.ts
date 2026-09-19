@@ -194,7 +194,7 @@ Hard rules:
 1. Respect the user's preferences exactly. allocation_pct must be 0 for HOLD and otherwise between 1 and the user's maximum allocation.
 2. Alloc's model supplies a "modelled net advantage" for every alternative (risk-adjusted score of the alternative minus the current asset's, minus move cost). Treat it as the primary estimate: expected_opportunity_pct should equal the modelled net advantage plus move cost (i.e. the gross advantage), adjusted only modestly and for stated reasons (on-chain premium, thin liquidity, one-sided trade flow, very fresh reversal). The route must be live.
    - Conservative and Balanced: move only when the best modelled net advantage exceeds the user's minimum opportunity threshold; otherwise HOLD.
-   - Aggressive and Degen: these users want to be positioned, not parked. Move whenever the best modelled net advantage is positive. If it clears the threshold, use the full allocation; if it is positive but below the threshold, still move, size it at about half the maximum allocation, call the edge thin, and set confidence to low or medium. HOLD only when no live alternative has a positive net advantage, and say plainly that the current asset is currently the strongest option.
+   - Aggressive and Degen: HOLD is not an allowed outcome while any live alternative exists. These users want a proposal every time. Pick the best live alternative by modelled net advantage (Degen: a seasoned meme when it qualifies, otherwise the best stock). Size it: full allocation when the edge clears the threshold; about half the maximum when the edge is positive but below the threshold; a quarter of the maximum (at least 5%) when every edge is negative, framed honestly as a speculative rotation the user asked for, with confidence low. Never pretend the edge is better than the model says.
 3. Never choose an alternative whose route is unavailable.
 4. If the current asset is a stablecoin, MOVE_TO_STABLECOIN is not meaningful; choose HOLD or MOVE_TO_ROBINHOOD.
 5. A large on-chain premium versus the Chainlink reference (above ~1%) is a cost and a risk, not an opportunity. A discount can be an opportunity.
@@ -225,7 +225,40 @@ ${alternatives.map(describeAlternative).join("\n")}
 
 Decide where this capital should be, and explain it.`;
 
-  const { decision: d, model } = await reasonDecision(system, user);
+  let { decision: d, model } = await reasonDecision(system, user);
+
+  // Aggressive and Degen must propose something whenever a route is live. If SERV still holds, ask once more with the constraint made explicit.
+  const mustMove = (prefs.risk === "aggressive" || prefs.risk === "degen") && alternatives.some((a) => a.routeCostPct != null);
+  if (mustMove && d.action === "HOLD") {
+    const ranked = alternatives.filter((a) => a.routeCostPct != null && a.score?.advantagePct != null).sort((a, b) => (b.score!.advantagePct! - a.score!.advantagePct!));
+    const retry = await reasonDecision(system, `${user}
+
+IMPORTANT: HOLD is not permitted for the ${prefs.risk} profile while a live alternative exists. Choose the best live alternative and size it per the rules. Ranked by modelled net advantage: ${ranked.slice(0, 5).map((a) => `${a.symbol} ${fmtPct(a.score!.advantagePct, 1)}`).join(", ")}.`).catch(() => null);
+    if (retry && retry.decision.action !== "HOLD") { d = retry.decision; model = retry.model; }
+    else if (ranked[0]) {
+      // Last resort: a deterministic proposal from the model, explained honestly.
+      const best = ranked[0];
+      const edge = best.score!.advantagePct!;
+      const alloc = edge >= prefs.minOpportunityPct ? prefs.maxAllocationPct : edge > 0 ? Math.max(1, Math.round(prefs.maxAllocationPct / 2)) : Math.max(5, Math.round(prefs.maxAllocationPct / 4));
+      d = {
+        action: best.kind === "stablecoin" ? "MOVE_TO_STABLECOIN" : "MOVE_TO_ROBINHOOD",
+        target_symbol: best.symbol,
+        allocation_pct: alloc,
+        expected_opportunity_pct: edge + (best.routeCostPct ?? 0),
+        confidence: "low",
+        headline: `Move ${alloc}% into ${best.symbol}`,
+        summary: `Your ${prefs.risk} profile asks for a proposal every time. ${best.symbol} is the strongest live alternative by Alloc's model with a net edge of ${fmtPct(edge, 1)} after costs${edge <= 0 ? ", which is not positive, so this is a speculative rotation rather than a clear opportunity" : ""}. The move is sized accordingly.`,
+        reasoning: [
+          `${position.symbol} scores ${fmtPct(position.score?.riskAdjustedPct, 1)} risk-adjusted on Alloc's model.`,
+          `${best.symbol} scores ${fmtPct(best.score?.riskAdjustedPct, 1)}; after a ${fmtPct(best.routeCostPct, 2).replace("+", "")} move cost the net edge is ${fmtPct(edge, 1)}.`,
+          `Your profile does not allow holding while a live route exists, so the best available option is proposed at ${alloc}% of the position.`,
+        ],
+        why_not: ranked.slice(1, 6).map((a) => ({ option: a.symbol, reason: `Lower modelled net edge (${fmtPct(a.score!.advantagePct, 1)}) than ${best.symbol}.` })),
+        warnings: [edge <= 0 ? "No alternative has a positive edge right now; this proposal exists because your profile always wants to be positioned." : "The edge is thin; sizing is reduced accordingly.", ...(best.kind === "meme" ? ["Meme token: no reference price, can lose most or all of its value."] : [])],
+      };
+      model = `${model} + alloc-model`;
+    }
+  }
 
   // Normalise against the rules so the UI never shows an impossible action.
   let action = d.action;
