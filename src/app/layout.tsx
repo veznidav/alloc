@@ -9,7 +9,9 @@ const schibsted = Schibsted_Grotesk({ subsets: ["latin"], variable: "--font-schi
 export const metadata: Metadata = {
   title: { default: "Alloc", template: "%s · Alloc" },
   description: "Alloc watches your crypto position and decides whether to hold, move to a stablecoin, or move into an opportunity on Robinhood Chain.",
-  openGraph: { title: "Alloc", description: "Your capital. Three choices. One intelligent allocator.", type: "website" },
+  metadataBase: new URL("https://alloc-two.vercel.app"),
+  openGraph: { title: "Alloc", description: "Your capital. Three choices. One intelligent allocator.", type: "website", images: [{ url: "/brand/og-1200x630.png", width: 1200, height: 630 }] },
+  twitter: { card: "summary_large_image", title: "Alloc", description: "Your capital. Three choices. One intelligent allocator.", images: ["/brand/og-1200x630.png"] },
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
