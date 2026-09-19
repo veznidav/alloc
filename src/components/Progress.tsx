@@ -13,14 +13,14 @@ const steps: { key: Stage; label: string }[] = [
 
 /** Live view of the agent at work: stages plus the evidence as it arrives. */
 export function Progress({ stage, feed }: { stage: Stage; feed: AllocEvent[] }) {
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => { ref.current?.scrollIntoView({ behavior: "smooth", block: "nearest" }); }, []);
   const idx = steps.findIndex((s) => s.key === stage || (stage === "routes" && s.key === "market"));
   if (idx < 0) return null;
   const routes = feed.filter((e): e is Extract<AllocEvent, { type: "route" }> => e.type === "route");
   const cands = feed.filter((e): e is Extract<AllocEvent, { type: "candidate" }> => e.type === "candidate");
   const ctx = feed.find((e): e is Extract<AllocEvent, { type: "context" }> => e.type === "context");
   const reasoning = stage === "reasoning";
-  const ref = useRef<HTMLDivElement>(null);
-  useEffect(() => { ref.current?.scrollIntoView({ behavior: "smooth", block: "nearest" }); }, []);
   return (
     <div ref={ref} className="card p-5 sm:p-6">
       {reasoning ? (
