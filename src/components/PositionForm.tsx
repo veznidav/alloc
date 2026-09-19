@@ -2,6 +2,7 @@
 import { useState } from "react";
 import type { PositionInput, SourceChain } from "@/lib/types";
 import { PreferencesBlock } from "./PreferencesBlock";
+import { QuotaNote } from "./QuotaNote";
 
 const EXAMPLES: { label: string; chain: SourceChain; token: string; amount: string }[] = [
   { label: "1,000,000 AERO on Base", chain: "base", token: "0x940181a94A35A4569E4529A3CDfB74e38FD98631", amount: "1000000" },
@@ -45,6 +46,7 @@ export function PositionForm({ onSubmit, busy, initial }: { onSubmit: (p: Positi
       <div className="flex flex-wrap items-center gap-4 pt-2">
         <button className="btn btn-primary btn-lg" type="submit" disabled={busy}>{busy ? "Working…" : "Ask Alloc"}</button>
         <span className="max-w-[32ch] text-sm leading-snug text-ink-3">Alloc reads the market, prices every route, and decides. Real data, nothing is traded.</span>
+        <QuotaNote />
       </div>
       <div className="flex flex-wrap gap-2 pt-1">
         {EXAMPLES.map((ex) => (

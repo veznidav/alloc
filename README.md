@@ -40,6 +40,10 @@ pnpm dev
 | `SERV_MODEL` | Model id from the SERV catalog (default `gpt-5.4-mini`) |
 | `SERV_SHADOW_AGENT` | `1` to enable shadow-agent validation |
 | `ETH_RPC_URL`, `BASE_RPC_URL`, `ROBINHOOD_RPC_URL` | Optional RPC overrides |
+| `ALLOC_DAILY_LIMIT` | Free decisions per visitor per day on the shared SERV key (default 30; a compare counts 4). Enforced with a signed cookie, no database. |
+| `ALLOC_GLOBAL_DAILY_LIMIT` | Soft cap per server instance per day (default 600) |
+| `ALLOC_QUOTA_SECRET` | Secret for signing the quota cookie |
+| `ALLOC_QUOTA_OFF` | `1` disables the quota (local development) |
 
 ## Notes
 

@@ -1,12 +1,15 @@
 import { evaluatePosition } from "@/lib/evaluate";
 import { resolvePosition } from "@/lib/tokens";
 import { DEFAULT_PREFERENCES, type AllocEvent, type PositionInput, type Preferences } from "@/lib/types";
+import { consumeQuota } from "@/lib/quota";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
 
 /** Streams Alloc's work as server-sent events, then the decision. */
 export async function POST(req: Request) {
+  const quota = consumeQuota(req, 1);
+  if (!quota.ok) return new Response(JSON.stringify({ error: quota.message, quota: { remaining: quota.remaining, limit: quota.limit } }), { status: 429, headers: { "content-type": "application/json" } });
   const body = (await req.json()) as { position: PositionInput; preferences?: Partial<Preferences>; mode?: "playground" | "real" };
   const prefs: Preferences = { ...DEFAULT_PREFERENCES, ...(body.preferences || {}) };
   prefs.maxAllocationPct = Math.min(100, Math.max(1, Number(prefs.maxAllocationPct) || 20));
@@ -31,5 +34,5 @@ export async function POST(req: Request) {
       }
     },
   });
-  return new Response(stream, { headers: { "content-type": "text/event-stream; charset=utf-8", "cache-control": "no-cache, no-transform", connection: "keep-alive", "x-accel-buffering": "no" } });
+  return new Response(stream, { headers: { "content-type": "text/event-stream; charset=utf-8", "cache-control": "no-cache, no-transform", connection: "keep-alive", "x-accel-buffering": "no", "x-alloc-quota-remaining": String(quota.remaining), ...(quota.setCookie ? { "set-cookie": quota.setCookie } : {}) } });
 }

@@ -30,7 +30,7 @@ Every decision comes with a plain explanation, a "why not" for every alternative
 - One screen that answers three questions: what do I have, what does Alloc think, what happens if I approve.
 - Real data only: live prices, momentum, liquidity, Chainlink reference prices, and live route quotes for the exact amount.
 - A transparent model plus SERV Reasoning, so every number in the explanation can be traced.
-- Playground (no wallet, nothing traded) and My wallet (real assets, real transactions, your signature on every step).
+- Playground (no wallet, nothing traded) and My wallet (real assets, real transactions, your signature on every step). Anyone can try it: every visitor gets 30 free decisions a day on our SERV key.
 - Compare the four profiles side by side, a live market board of Robinhood Chain, decision history, and a monitor mode.
 
 ## How it works

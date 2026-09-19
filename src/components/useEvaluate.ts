@@ -1,5 +1,6 @@
 "use client";
 import { useCallback, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import type { AllocEvent, Decision, Position, PositionInput, Preferences } from "@/lib/types";
 
 export type Stage = "idle" | "position" | "market" | "routes" | "reasoning" | "done" | "error";
@@ -16,6 +17,7 @@ export function useEvaluate(mode: "playground" | "real") {
   const [error, setError] = useState<string | null>(null);
   const [feed, setFeed] = useState<AllocEvent[]>([]);
   const [livePosition, setLivePosition] = useState<Position | null>(null);
+  const qc = useQueryClient();
 
   const resolve = useCallback(async (input: PositionInput) => {
     setError(null);
@@ -66,8 +68,10 @@ export function useEvaluate(mode: "playground" | "real") {
       setError((e as Error).message);
       setStage("error");
       return null;
+    } finally {
+      qc.invalidateQueries({ queryKey: ["quota"] });
     }
-  }, [mode]);
+  }, [mode, qc]);
 
   return { stage, error, feed, livePosition, resolve, evaluate, reset: () => { setStage("idle"); setError(null); setFeed([]); setLivePosition(null); } };
 }

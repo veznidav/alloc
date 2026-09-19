@@ -7,6 +7,7 @@ import { CHAIN_LABELS } from "@/lib/chains";
 import type { PositionInput, SourceChain } from "@/lib/types";
 import { PreferencesBlock } from "./PreferencesBlock";
 import { Working } from "./Working";
+import { QuotaNote } from "./QuotaNote";
 
 export interface Holding { chain: SourceChain; token: string; symbol: string; name: string; decimals: number; balance: string; priceUsd?: number | null; valueUsd?: number | null; logo?: string | null }
 
@@ -155,6 +156,7 @@ export function WalletPanel({ onSelect, busy }: { onSelect: (p: PositionInput) =
           <div className="mt-6 flex flex-wrap items-center gap-4">
             <button className="btn btn-primary btn-lg" disabled={busy || !amount || Number(amount.replace(/,/g, "")) <= 0} onClick={() => onSelect({ chain: picked.chain, token: picked.token, amount: amount.replace(/,/g, "") })}>{busy ? "Working…" : "Ask Alloc"}</button>
             <span className="max-w-[36ch] text-sm leading-snug text-ink-3">Alloc will evaluate, explain, and wait for your approval before anything moves.</span>
+            <QuotaNote />
           </div>
         </Step>
       )}
