@@ -11,8 +11,8 @@ export default function Home() {
           Alloc watches a crypto position on Ethereum or Base and decides whether it should stay put, move to a stablecoin, or move into a tokenized stock on Robinhood Chain. Every decision comes with the reasoning, the cost, and what happens if you approve.
         </p>
         <div className="flex flex-wrap gap-3 pt-2">
-          <Link href="/playground" className="btn btn-primary">Try a hypothetical position</Link>
-          <Link href="/real" className="btn btn-secondary">Connect a wallet</Link>
+          <Link href="/real" className="btn btn-primary">Connect my wallet</Link>
+          <Link href="/playground" className="btn btn-secondary">Try a hypothetical position</Link>
           <Link href="/market" className="btn btn-secondary">See the market</Link>
         </div>
       </section>

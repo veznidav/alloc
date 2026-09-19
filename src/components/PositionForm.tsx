@@ -1,8 +1,7 @@
 "use client";
 import { useState } from "react";
-import { RISK_PROFILES, type PositionInput, type SourceChain } from "@/lib/types";
-import { useAlloc } from "@/store/useAlloc";
-import { PreferencesForm } from "./PreferencesForm";
+import type { PositionInput, SourceChain } from "@/lib/types";
+import { PreferencesBlock } from "./PreferencesBlock";
 
 const EXAMPLES: { label: string; chain: SourceChain; token: string; amount: string }[] = [
   { label: "1,000,000 AERO on Base", chain: "base", token: "0x940181a94A35A4569E4529A3CDfB74e38FD98631", amount: "1000000" },
@@ -17,8 +16,6 @@ export function PositionForm({ onSubmit, busy, initial }: { onSubmit: (p: Positi
   const [chain, setChain] = useState<SourceChain>(initial?.chain ?? "base");
   const [token, setToken] = useState(initial?.token ?? "");
   const [amount, setAmount] = useState(initial?.amount ?? "");
-  const [showPrefs, setShowPrefs] = useState(false);
-  const prefs = useAlloc((s) => s.preferences);
 
   return (
     <form
@@ -44,19 +41,7 @@ export function PositionForm({ onSubmit, busy, initial }: { onSubmit: (p: Positi
         <label className="lbl" htmlFor="amount">Amount</label>
         <input id="amount" className="field tnum" placeholder="1,000,000" inputMode="decimal" value={amount} onChange={(e) => setAmount(e.target.value)} required />
       </div>
-      <div className={`rounded-2xl border-2 ${prefs.risk === "degen" ? "border-danger/60 bg-danger-soft/40" : "border-ink/80 bg-surface-2"}`}>
-        <div className="flex flex-wrap items-center justify-between gap-3 px-5 py-4">
-          <div>
-            <p className="text-sm text-ink-3">How Alloc should behave for this position</p>
-            <p className="mt-0.5 text-[1.05rem]">
-              <span className={`font-bold ${prefs.risk === "degen" ? "text-danger" : ""}`}>{RISK_PROFILES[prefs.risk].label}</span>
-              <span className="text-ink-2"> · {RISK_PROFILES[prefs.risk].tagline.toLowerCase()} · move above {prefs.minOpportunityPct}% edge · at most {prefs.maxAllocationPct}% per decision · {prefs.approvalMode}</span>
-            </p>
-          </div>
-          <button type="button" className={`btn btn-sm ${showPrefs ? "btn-secondary" : "btn-primary"}`} onClick={() => setShowPrefs((v) => !v)} aria-expanded={showPrefs}>{showPrefs ? "Done" : "Adjust"}</button>
-        </div>
-        {showPrefs && <div className="border-t border-line-strong/60 px-5 py-6"><PreferencesForm compact /></div>}
-      </div>
+      <PreferencesBlock />
       <div className="flex flex-wrap items-center gap-3 pt-1">
         <button className="btn btn-primary" type="submit" disabled={busy}>{busy ? "Working…" : "Ask Alloc"}</button>
         <span className="text-sm text-ink-3">Real market data, nothing is traded.</span>

@@ -34,8 +34,8 @@ export default function RealPage() {
     <div className="space-y-6">
       <div className="flex items-start justify-between gap-4">
         <div>
-          <p className="text-sm text-ink-3">Real mode · real assets, real transactions</p>
-          <h1 className="mt-1 text-2xl font-bold">{view === "pick" ? "Your position" : realPosition ? `${realPosition.symbol} on ${realPosition.chain === "base" ? "Base" : "Ethereum"}` : "Your position"}</h1>
+          <p className="text-sm text-ink-3">My wallet · real assets, real transactions</p>
+          <h1 className="mt-1 text-2xl font-bold">{view === "pick" ? "Let Alloc watch a real position" : realPosition ? `${realPosition.symbol} on ${realPosition.chain === "base" ? "Base" : "Ethereum"}` : "Your position"}</h1>
         </div>
         {view !== "pick" && <button className="btn btn-secondary btn-sm" onClick={() => { setView("pick"); reset(); }}>Change position</button>}
       </div>
@@ -79,7 +79,7 @@ export default function RealPage() {
         />
       )}
 
-      <p className="text-sm text-ink-3">Approval mode is <span className="font-semibold text-ink-2">{preferences.approvalMode}</span>. Change it in <Link className="underline" href="/settings">preferences</Link>.</p>
+      {view !== "pick" && <p className="text-sm text-ink-3">Approval mode is <span className="font-semibold text-ink-2">{preferences.approvalMode}</span>. Change it in <Link className="underline" href="/settings">preferences</Link>.</p>}
     </div>
   );
 }

@@ -2,7 +2,7 @@ import { formatUnits, getAddress, isAddress } from "viem";
 import { erc20Abi } from "./abis";
 import { NATIVE, STABLE_SYMBOLS, publicClient, USDC } from "./chains";
 import { dexMarket, ethMomentum, nativeEthMarket, tokenMomentum } from "./market";
-import { cached } from "./cache";
+import { cached, mapLimit } from "./cache";
 import type { Position, PositionInput, SourceChain } from "./types";
 
 export interface TokenMeta { symbol: string; name: string; decimals: number; address: string }
@@ -90,5 +90,15 @@ export async function walletHoldings(chain: SourceChain, owner: `0x${string}`) {
     const bal = await client.readContract({ address: USDC[chain], abi: erc20Abi, functionName: "balanceOf", args: [owner] }).catch(() => 0n);
     if (bal > 0n) out.push({ token: USDC[chain], symbol: "USDC", name: "USD Coin", decimals: 6, balance: formatUnits(bal, 6) });
   }
-  return out;
+  // Price what we found so the user sees dollar values, not raw balances.
+  const priced = await mapLimit(out.slice(0, 16), 4, async (h) => {
+    let priceUsd: number | null = null;
+    try {
+      if (h.token === NATIVE) priceUsd = (await nativeEthMarket()).priceUsd;
+      else if (STABLE_SYMBOLS.has(h.symbol.toUpperCase())) priceUsd = 1;
+      else priceUsd = (await dexMarket(chain, h.token))?.snapshot.priceUsd ?? null;
+    } catch { priceUsd = null; }
+    return { ...h, priceUsd, valueUsd: priceUsd != null ? priceUsd * Number(h.balance) : null };
+  });
+  return priced.sort((a, b) => (b.valueUsd ?? -1) - (a.valueUsd ?? -1));
 }
