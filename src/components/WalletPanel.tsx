@@ -9,7 +9,8 @@ export interface Holding { token: string; symbol: string; name: string; decimals
 
 export function WalletPanel({ onSelect, busy }: { onSelect: (p: PositionInput) => void; busy?: boolean }) {
   const { address, isConnected } = useAccount();
-  const { connect, connectors, isPending, error: connectError } = useConnect();
+  const { connectAsync, connectors, isPending, reset } = useConnect();
+  const [connectMsg, setConnectMsg] = useState<string | null>(null);
   const { disconnect } = useDisconnect();
   const [chain, setChain] = useState<SourceChain>("base");
   const [manual, setManual] = useState("");
@@ -32,10 +33,23 @@ export function WalletPanel({ onSelect, busy }: { onSelect: (p: PositionInput) =
         <h2 className="text-xl font-bold">Connect a wallet</h2>
         <p className="mt-2 max-w-[56ch] text-ink-2">Alloc reads your position on Base or Ethereum, evaluates it exactly like the Playground, and prepares transactions for you to approve. Nothing moves without your signature.</p>
         <div className="mt-5 flex flex-wrap items-center gap-3">
-          <button className="btn btn-primary" onClick={() => injected && connect({ connector: injected })} disabled={!injected || isPending}>{isPending ? "Waiting for wallet…" : "Connect browser wallet"}</button>
-          <span className="text-sm text-ink-3">MetaMask, Rabby, Coinbase Wallet or any injected wallet.</span>
+          <button className="btn btn-primary" disabled={!injected || isPending} onClick={async () => {
+            if (!injected) return;
+            setConnectMsg(null);
+            try { await connectAsync({ connector: injected }); }
+            catch (e) {
+              const err = e as { code?: number; message?: string; cause?: { code?: number } };
+              const code = err.code ?? err.cause?.code;
+              const msg = err.message ?? "";
+              if (code === -32002 || /already pending/i.test(msg)) setConnectMsg("Your wallet already has a connection request waiting. Open the wallet extension, unlock it, then approve or reject that request and try again.");
+              else if (code === 4001 || /rejected|denied/i.test(msg)) setConnectMsg("Connection cancelled in the wallet. Try again whenever you are ready.");
+              else setConnectMsg(msg.split("\n")[0] || "The wallet did not connect.");
+              reset();
+            }
+          }}>{isPending ? "Waiting for wallet…" : connectMsg ? "Try again" : "Connect browser wallet"}</button>
+          <span className="text-sm text-ink-3">{injected ? "MetaMask, Rabby, Coinbase Wallet or any injected wallet." : "No browser wallet found. Install MetaMask or open this page in a wallet browser."}</span>
         </div>
-        {connectError && <p className="mt-3 text-sm text-danger">{connectError.message}</p>}
+        {connectMsg && <p className="mt-3 max-w-[60ch] text-sm text-danger">{connectMsg}</p>}
       </div>
     );
   }

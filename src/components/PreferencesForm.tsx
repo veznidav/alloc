@@ -7,7 +7,7 @@ export function PreferencesForm({ compact }: { compact?: boolean } = {}) {
   return (
     <div className={compact ? "space-y-6" : "space-y-8"}>
       <Field label="Risk profile" hint="Sets which Robinhood Chain assets Alloc may consider and how it weighs volatility.">
-        <div className="grid gap-2 sm:grid-cols-2" role="group">
+        <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4" role="group">
           {(Object.keys(RISK_PROFILES) as RiskTolerance[]).map((r) => {
             const prof = RISK_PROFILES[r];
             const on = p.risk === r;

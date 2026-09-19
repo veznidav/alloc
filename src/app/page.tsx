@@ -7,7 +7,7 @@ export default function Home() {
         <h1 className="display text-[2.6rem] font-bold sm:text-[3.4rem]">
           Your capital.<br />Three choices.<br />One intelligent allocator.
         </h1>
-        <p className="max-w-[52ch] text-[1.05rem] leading-relaxed text-ink-2">
+        <p className="max-w-[60ch] text-[1.1rem] leading-relaxed text-ink-2">
           Alloc watches a crypto position on Ethereum or Base and decides whether it should stay put, move to a stablecoin, or move into a tokenized stock on Robinhood Chain. Every decision comes with the reasoning, the cost, and what happens if you approve.
         </p>
         <div className="flex flex-wrap gap-3 pt-2">

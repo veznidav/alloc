@@ -44,15 +44,18 @@ export function PositionForm({ onSubmit, busy, initial }: { onSubmit: (p: Positi
         <label className="lbl" htmlFor="amount">Amount</label>
         <input id="amount" className="field tnum" placeholder="1,000,000" inputMode="decimal" value={amount} onChange={(e) => setAmount(e.target.value)} required />
       </div>
-      <div className="rounded-xl border border-line">
-        <button type="button" className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left" onClick={() => setShowPrefs((v) => !v)} aria-expanded={showPrefs}>
-          <span className="text-[0.95rem]">
-            <span className="font-semibold">{RISK_PROFILES[prefs.risk].label}</span>
-            <span className="text-ink-2"> · move above {prefs.minOpportunityPct}% edge · at most {prefs.maxAllocationPct}% per decision · {prefs.approvalMode}</span>
-          </span>
-          <span className="shrink-0 text-sm text-ink-3">{showPrefs ? "Hide" : "Adjust"}</span>
-        </button>
-        {showPrefs && <div className="border-t border-line px-4 py-5"><PreferencesForm compact /></div>}
+      <div className={`rounded-2xl border-2 ${prefs.risk === "degen" ? "border-danger/60 bg-danger-soft/40" : "border-ink/80 bg-surface-2"}`}>
+        <div className="flex flex-wrap items-center justify-between gap-3 px-5 py-4">
+          <div>
+            <p className="text-sm text-ink-3">How Alloc should behave for this position</p>
+            <p className="mt-0.5 text-[1.05rem]">
+              <span className={`font-bold ${prefs.risk === "degen" ? "text-danger" : ""}`}>{RISK_PROFILES[prefs.risk].label}</span>
+              <span className="text-ink-2"> · {RISK_PROFILES[prefs.risk].tagline.toLowerCase()} · move above {prefs.minOpportunityPct}% edge · at most {prefs.maxAllocationPct}% per decision · {prefs.approvalMode}</span>
+            </p>
+          </div>
+          <button type="button" className={`btn btn-sm ${showPrefs ? "btn-secondary" : "btn-primary"}`} onClick={() => setShowPrefs((v) => !v)} aria-expanded={showPrefs}>{showPrefs ? "Done" : "Adjust"}</button>
+        </div>
+        {showPrefs && <div className="border-t border-line-strong/60 px-5 py-6"><PreferencesForm compact /></div>}
       </div>
       <div className="flex flex-wrap items-center gap-3 pt-1">
         <button className="btn btn-primary" type="submit" disabled={busy}>{busy ? "Working…" : "Ask Alloc"}</button>

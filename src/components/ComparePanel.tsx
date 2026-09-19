@@ -24,7 +24,7 @@ export function ComparePanel({ position, preferences, onPick }: { position: Posi
       {error && <p className="mt-4 text-danger">{error}</p>}
       {!rows && !error && <p className="thinking mt-4 text-ink-2">Running four SERV decisions in parallel…</p>}
       {rows && (
-        <div className="mt-6 grid gap-3 sm:grid-cols-2">
+        <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           {rows.map((r) => {
             const prof = RISK_PROFILES[r.risk];
             const d = r.decision;
