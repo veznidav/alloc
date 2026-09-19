@@ -11,7 +11,8 @@ import { Working } from "./Working";
 
 interface StepItem { status: string; data: { from: string; to: string; data: `0x${string}`; value: string; chainId: number; gas?: string } }
 interface Step { id: string; kind: string; description: string; requestId?: string; items: StepItem[] }
-interface Plan { simulation: Simulation; steps: Step[]; leg2: null | { tokenOut: `0x${string}`; symbol: string; decimals: number; usdgIn: string; expectedOut: string } }
+interface Preflight { rhEth: string; rhUsdg: string; needsGas: boolean; gasTopUp: Step[]; gasTopUpUsd: number | null; resumable: boolean }
+interface Plan { simulation: Simulation; steps: Step[]; leg2: null | { tokenOut: `0x${string}`; symbol: string; decimals: number; usdgIn: string; expectedOut: string }; preflight: Preflight | null }
 interface Leg2 { txs: { label: string; chainId: number; to: `0x${string}`; data: `0x${string}`; value: string }[]; expectedOut: string; minOut: string }
 
 type Phase = "preview" | "signing" | "bridging" | "leg2" | "done" | "failed";
@@ -41,13 +42,34 @@ export function ExecutionPanel({ decision, onDone, onReject }: { decision: Decis
     if (chainId !== id) { say(`Switching wallet to chain ${id}…`); await switchChainAsync({ chainId: id }); }
   }, [chainId, switchChainAsync]);
 
-  const execute = useCallback(async () => {
+  const waitForRelay = useCallback(async (requestId: string) => {
+    for (let i = 0; i < 120; i++) {
+      const s = await fetch(`/api/execute/status?requestId=${requestId}`).then((r) => r.json());
+      if (s.status === "success") return;
+      if (s.status === "failure" || s.status === "refund") throw new Error(`The move did not complete (${s.status}). Any funds are refunded to your wallet.`);
+      await new Promise((r) => setTimeout(r, 3000));
+    }
+  }, []);
+
+  const execute = useCallback(async (mode: "full" | "resume" = "full") => {
     if (!plan || !address) return;
     setPhase("signing"); setError(null);
     const done: { chainId: number; hash: string; label: string }[] = [];
     try {
       let requestId: string | undefined;
-      for (const step of plan.steps) {
+      // Gas first: without ETH on Robinhood Chain the on-chain leg cannot be signed.
+      if (plan.preflight?.needsGas) {
+        if (!plan.preflight.gasTopUp.length) throw new Error("You have no ETH on Robinhood Chain for gas and Alloc could not find a top-up route. Send a little ETH to your address on Robinhood Chain and try again.");
+        for (const step of plan.preflight.gasTopUp) for (const item of step.items) {
+          await ensureChain(item.data.chainId);
+          say("Gas top-up for Robinhood Chain: waiting for your signature");
+          const hash = await sendTransactionAsync({ to: item.data.to as `0x${string}`, data: item.data.data, value: BigInt(item.data.value || "0"), chainId: item.data.chainId as 1 | 8453 | 4663, gas: item.data.gas ? BigInt(item.data.gas) : undefined });
+          done.push({ chainId: item.data.chainId, hash, label: "Gas top-up" }); setTxs([...done]);
+          await waitForTransactionReceipt(wagmiConfig, { hash, chainId: item.data.chainId as 1 | 8453 | 4663 });
+          if (step.requestId) { say("Waiting for the gas to arrive on Robinhood Chain…"); await waitForRelay(step.requestId); }
+        }
+      }
+      for (const step of mode === "resume" ? [] : plan.steps) {
         for (const item of step.items) {
           if (item.status === "complete") continue;
           await ensureChain(item.data.chainId);
@@ -64,18 +86,10 @@ export function ExecutionPanel({ decision, onDone, onReject }: { decision: Decis
 
       // Cross-chain: wait for Relay to deliver USDG on Robinhood Chain.
       setPhase("bridging");
-      if (requestId) {
-        say("Funds are on their way to Robinhood Chain…");
-        for (let i = 0; i < 120; i++) {
-          const s = await fetch(`/api/execute/status?requestId=${requestId}`).then((r) => r.json());
-          if (s.status === "success") break;
-          if (s.status === "failure" || s.status === "refund") throw new Error(`The move did not complete (${s.status}). Any funds are refunded to your wallet.`);
-          await new Promise((r) => setTimeout(r, 3000));
-        }
-      }
+      if (requestId) { say("Funds are on their way to Robinhood Chain…"); await waitForRelay(requestId); }
       setPhase("leg2");
       say(`Buying ${plan.leg2.symbol} on Robinhood Chain…`);
-      const leg2 = await post<Leg2>("/api/execute/leg2", { user: address, tokenOut: plan.leg2.tokenOut, usdgIn: plan.leg2.usdgIn });
+      const leg2 = await post<Leg2>("/api/execute/leg2", { user: address, tokenOut: plan.leg2.tokenOut, usdgIn: mode === "resume" ? plan.preflight!.rhUsdg : plan.leg2.usdgIn });
       for (const tx of leg2.txs) {
         await ensureChain(tx.chainId);
         say(`${tx.label}: waiting for your signature`);
@@ -89,10 +103,10 @@ export function ExecutionPanel({ decision, onDone, onReject }: { decision: Decis
       setError((e as Error).message.split("\n")[0]);
       setPhase("failed");
     }
-  }, [plan, address, ensureChain, sendTransactionAsync, decision.action, onDone]);
+  }, [plan, address, ensureChain, sendTransactionAsync, decision.action, onDone, waitForRelay]);
 
   useEffect(() => {
-    if (auto && plan && phase === "preview" && !started.current) { started.current = true; execute(); }
+    if (auto && plan && phase === "preview" && !started.current) { started.current = true; execute("full"); }
   }, [auto, plan, phase, execute]);
 
   const sim = plan?.simulation;
@@ -116,6 +130,19 @@ export function ExecutionPanel({ decision, onDone, onReject }: { decision: Decis
       {sim && decision.targetChain === "robinhood" && !decision.targetDirect && (
         <p className="mt-4 text-sm text-ink-3">Two signatures on {decision.position.chain === "base" ? "Base" : "Ethereum"}, then one to three on Robinhood Chain once the funds arrive. Your wallet will be asked to switch networks.</p>
       )}
+      {plan?.preflight && (
+        <div className={`mt-4 rounded-xl border p-4 text-sm ${plan.preflight.needsGas ? "border-warn/40 bg-warn-soft" : "border-line bg-surface-2"}`}>
+          <p className="font-semibold">Gas on Robinhood Chain: {Number(plan.preflight.rhEth) > 0 ? `${Number(plan.preflight.rhEth).toFixed(5)} ETH` : "none"}</p>
+          {plan.preflight.needsGas ? (
+            plan.preflight.gasTopUp.length
+              ? <p className="mt-1 text-ink-2">The on-chain step needs a little ETH there. Alloc will first send about {usd(plan.preflight.gasTopUpUsd, { decimals: 2 })} of ETH from {decision.position.chain === "base" ? "Base" : "Ethereum"} to your address on Robinhood Chain (one extra signature), enough for many future moves.</p>
+              : <p className="mt-1 text-danger">The on-chain step needs ETH there and no top-up route was found. Send a little ETH to your address on Robinhood Chain first.</p>
+          ) : <p className="mt-1 text-ink-2">Enough for the on-chain step.</p>}
+          {plan.preflight.resumable && phase === "preview" && (
+            <p className="mt-2 text-ink-2">You already hold {Number(plan.preflight.rhUsdg).toFixed(4)} USDG on Robinhood Chain from an earlier move. You can finish with that instead of moving more.</p>
+          )}
+        </div>
+      )}
 
       {(phase === "signing" || phase === "bridging" || phase === "leg2") && (
         <div className="mt-5"><Working label={phase === "bridging" ? "Funds are moving to Robinhood Chain" : phase === "leg2" ? "Buying on Robinhood Chain" : "Waiting for your wallet"} detail={phase === "bridging" ? "Relay is delivering USDG; this usually takes under a minute" : phase === "leg2" ? "Sign the remaining steps in your wallet" : "Confirm the transaction in your wallet"} tone="robinhood" /></div>
@@ -132,7 +159,8 @@ export function ExecutionPanel({ decision, onDone, onReject }: { decision: Decis
         {phase === "preview" && !auto && (
           <>
             <button className="btn btn-danger" onClick={onReject}>Reject</button>
-            <button className={`btn ${decision.action === "MOVE_TO_ROBINHOOD" ? "btn-robinhood" : "btn-stable"}`} disabled={!plan} onClick={execute}>Approve</button>
+            <button className={`btn ${decision.action === "MOVE_TO_ROBINHOOD" ? "btn-robinhood" : "btn-stable"}`} disabled={!plan} onClick={() => execute("full")}>Approve</button>
+            {plan?.preflight?.resumable && <button className="btn btn-secondary" onClick={() => execute("resume")}>Finish with the USDG already there</button>}
           </>
         )}
         {phase === "failed" && <button className="btn btn-secondary" onClick={onReject}>Back</button>}

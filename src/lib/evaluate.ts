@@ -260,6 +260,14 @@ IMPORTANT: HOLD is not permitted for the ${prefs.risk} profile while a live alte
     }
   }
 
+  // Option names must be plain symbols, whatever SERV wrote ("MOVE_TO_ROBINHOOD AI" → "AI", "HOLD USDC" → "USDC").
+  const known = new Set([position.symbol.toUpperCase(), ...alternatives.map((a) => a.symbol.toUpperCase())]);
+  d.why_not = d.why_not.map((w) => {
+    const cleaned = w.option.replace(/MOVE_TO_ROBINHOOD|MOVE_TO_STABLECOIN|HOLD|MOVE TO|ROBINHOOD CHAIN|STABLECOIN/gi, "").replace(/[_:()→-]+/g, " ").trim();
+    const hit = cleaned.split(/\s+/).find((t) => known.has(t.toUpperCase()));
+    return { option: hit ?? cleaned ?? w.option, reason: w.reason };
+  });
+
   // Normalise against the rules so the UI never shows an impossible action.
   let action = d.action;
   let target = d.target_symbol ? alternatives.find((a) => a.symbol.toLowerCase() === d.target_symbol!.toLowerCase()) ?? null : null;

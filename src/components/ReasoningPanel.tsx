@@ -23,8 +23,8 @@ export function ReasoningPanel({ decision: d }: { decision: Decision }) {
           <h3 className="text-lg font-bold">Why not the others</h3>
           <dl className="mt-3 divide-y divide-line">
             {d.whyNot.map((w, i) => (
-              <div key={i} className="grid gap-1 py-3 sm:grid-cols-[7rem_1fr]">
-                <dt className="font-semibold">{w.option}</dt>
+              <div key={i} className="grid gap-1 py-3 sm:grid-cols-[10rem_1fr]">
+                <dt className="break-words font-semibold">{w.option}</dt>
                 <dd className="text-[0.95rem] leading-relaxed text-ink-2">{w.reason}</dd>
               </div>
             ))}
