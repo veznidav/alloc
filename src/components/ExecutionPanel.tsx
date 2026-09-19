@@ -1,7 +1,7 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useAccount, useSendTransaction, useSwitchChain } from "wagmi";
-import { waitForTransactionReceipt } from "wagmi/actions";
+import { useAccount, useSendTransaction } from "wagmi";
+import { getChainId, switchChain, waitForTransactionReceipt } from "wagmi/actions";
 import { explorerTx } from "@/lib/chains";
 import { num, pct, usd } from "@/lib/format";
 import { wagmiConfig } from "@/lib/wagmi";
@@ -18,8 +18,7 @@ interface Leg2 { txs: { label: string; chainId: number; to: `0x${string}`; data:
 type Phase = "preview" | "signing" | "bridging" | "leg2" | "done" | "failed";
 
 export function ExecutionPanel({ decision, onDone, onReject }: { decision: Decision; onDone: (txs: { chainId: number; hash: string; label: string }[]) => void; onReject: () => void }) {
-  const { address, chainId } = useAccount();
-  const { switchChainAsync } = useSwitchChain();
+  const { address } = useAccount();
   const { sendTransactionAsync } = useSendTransaction();
   const [plan, setPlan] = useState<Plan | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -38,9 +37,15 @@ export function ExecutionPanel({ decision, onDone, onReject }: { decision: Decis
 
   const say = (m: string) => setLog((l) => [...l, m]);
 
+  /** Always read the wallet's live chain: React state can be stale mid-flow, and a wrong chain fails the transaction. */
   const ensureChain = useCallback(async (id: number) => {
-    if (chainId !== id) { say(`Switching wallet to chain ${id}…`); await switchChainAsync({ chainId: id }); }
-  }, [chainId, switchChainAsync]);
+    const name = id === 4663 ? "Robinhood Chain" : id === 8453 ? "Base" : id === 1 ? "Ethereum" : `chain ${id}`;
+    if (getChainId(wagmiConfig) === id) return;
+    say(`Switching wallet to ${name}…`);
+    await switchChain(wagmiConfig, { chainId: id as 1 | 8453 | 4663 });
+    for (let i = 0; i < 20 && getChainId(wagmiConfig) !== id; i++) await new Promise((r) => setTimeout(r, 250));
+    if (getChainId(wagmiConfig) !== id) throw new Error(`Your wallet did not switch to ${name}. Switch manually in the wallet and try again.`);
+  }, []);
 
   const waitForRelay = useCallback(async (requestId: string) => {
     for (let i = 0; i < 120; i++) {
